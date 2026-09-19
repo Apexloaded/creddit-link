@@ -1,5 +1,5 @@
 {
-  "name": "mandate",
+  "name": "creddit-link",
   "private": true,
   "scripts": {
     "build": "turbo run build",
