@@ -111,10 +111,12 @@ contract CredditAssetRegistry is CredditCore {
     /// @dev Array of all assets in the registry.
     address[] private _assets;
 
-    /// @notice Constructor only called once when the contract is deployed.
+    /// @notice Initialized only once when the contract is deployed.
     /// @param admin The address of the admin (the deployer), also pauser and DEFAULT_ADMIN_ROLE.
     /// @dev These roles allow the admin to add, update, or remove assets from the registry.
-    constructor(address admin) CredditCore(admin) {
+    function initialize(address admin) external initializer {
+        if (admin == address(0)) revert ZeroAddressProvided();
+        __CredditCore_init(admin);
         _grantRole(ASSET_ADMIN_ROLE, admin);
     }
 
@@ -239,6 +241,10 @@ contract CredditAssetRegistry is CredditCore {
         emit AssetEnabledStatusUpdated(token, assetConfig[token].isEnabled);
     }
 
+    /*********************************************************************
+     * EXTERNAL VIEW FUNCTIONS
+     *********************************************************************/
+
     /// @notice Gets the configuration for an asset.
     /// @param token The address of the token.
     /// @return The configuration for the asset.
@@ -291,6 +297,10 @@ contract CredditAssetRegistry is CredditCore {
     function assetCount() public view returns (uint256) {
         return _assets.length;
     }
+
+    /*********************************************************************
+     * INTERNAL FUNCTIONS
+     *********************************************************************/
 
     /// @notice Validates risk parameters for an asset before listing or updating.
     /// @param collateralFactorBps Max LTV (Loan-To-Value) in basis points
