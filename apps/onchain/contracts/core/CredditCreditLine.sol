@@ -5,8 +5,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {CredditAssetRegistry} from "./CredditAssetRegistry.sol";
 import {CredditCore} from "./CredditCore.sol";
+import {CredditAssetRegistry} from "./CredditAssetRegistry.sol";
+import {CredditRiskEngine} from "./CredditRiskEngine.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {ZeroAddressProvided, ZeroAmount, AssetNotEnabled} from "./CredditErrors.sol";
 
@@ -29,6 +30,9 @@ contract CredditCreditLine is CredditCore {
 
     /// @dev Reference to the asset registry contract.
     CredditAssetRegistry public assetRegistry;
+
+    /// @dev Reference to the risk engine contract.
+    CredditRiskEngine public riskEngine;
 
     /// @dev The USDG token contract.
     IERC20 public usdg;
@@ -53,16 +57,6 @@ contract CredditCreditLine is CredditCore {
         uint256 amount
     );
 
-    /// @notice WAD fraction of risk-adjusted collateral value a user may borrow
-    /// against (Section 16), e.g. 0.90e18 = 90%.
-    uint256 public creditUtilizationCapWad;
-    /// @notice Max distinct collateral assets a single user may hold, bounding
-    /// gas for portfolio iteration (Section 37).
-    uint256 public maxCollateralAssetsPerUser;
-    /// @notice Max fraction of a position's debt that can be repaid in a single
-    /// liquidation call, WAD fraction (Section 26).
-    uint256 public liquidationCloseFactorWad;
-
     /// @dev user => collateral asset => raw token amount deposited.
     mapping(address => mapping(address => uint256))
         public userCollateralBalance;
@@ -78,14 +72,14 @@ contract CredditCreditLine is CredditCore {
 
     /// @notice Initialized only once when the contract is deployed.
     /// @param admin The address of the admin (the deployer), also pauser and DEFAULT_ADMIN_ROLE.
+    /// @param _assetRegistry The address of the asset registry contract.
+    /// @param _usdg The address of the USDG token contract.
     /// @dev These roles allow the admin to add, update, or remove assets from the registry.
     function initialize(
         address admin,
         address _assetRegistry,
         address _usdg,
-        uint256 _creditUtilizationCapWad,
-        uint256 _maxCollateralAssetsPerUser,
-        uint256 _liquidationCloseFactorWad
+        address _riskEngine
     ) external initializer {
         if (
             admin == address(0) ||
@@ -102,12 +96,8 @@ contract CredditCreditLine is CredditCore {
 
         // Initialize Asset Registry and USDG
         assetRegistry = CredditAssetRegistry(_assetRegistry);
+        riskEngine = CredditRiskEngine(_riskEngine);
         usdg = IERC20(_usdg);
-
-        // Initialize risk parameters
-        creditUtilizationCapWad = _creditUtilizationCapWad;
-        maxCollateralAssetsPerUser = _maxCollateralAssetsPerUser;
-        liquidationCloseFactorWad = _liquidationCloseFactorWad;
     }
 
     /// @notice Deposits collateral into the protocol.
@@ -132,7 +122,7 @@ contract CredditCreditLine is CredditCore {
         if (!_userHasAsset[msg.sender][asset]) {
             if (
                 _userCollateralAssets[msg.sender].length() >=
-                maxCollateralAssetsPerUser
+                riskEngine.maxCollateralAssetsPerUser()
             ) revert TooManyCollateralAssets();
 
             _userHasAsset[msg.sender][asset] = true;
