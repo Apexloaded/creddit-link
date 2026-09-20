@@ -57,6 +57,8 @@ contract CredditCreditLine is CredditCore {
         uint256 amount
     );
 
+    /// @dev user => debt balance (in USDG) issued against collateral.
+    mapping(address => uint256) public debtShares;
     /// @dev user => collateral asset => raw token amount deposited.
     mapping(address => mapping(address => uint256))
         public userCollateralBalance;
@@ -172,5 +174,12 @@ contract CredditCreditLine is CredditCore {
         IERC20(asset).safeTransfer(msg.sender, amount);
 
         emit CollateralWithdrawn(msg.sender, asset, amount);
+    }
+
+    /// @notice Borrows USDG against collateral.
+    /// @param amount The amount of USDG to borrow.
+    function borrow(uint256 amount) external whenNotPaused nonReentrant {
+        if (amount == 0) revert ZeroAmount();
+        
     }
 }
