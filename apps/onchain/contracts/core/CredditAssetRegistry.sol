@@ -2,12 +2,13 @@
 pragma solidity ^0.8.27;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {CredditCore, ZeroAddressProvided, InvalidDecimals} from "./CredditCore.sol";
+import {CredditCore} from "./CredditCore.sol";
+import {ZeroAddressProvided, InvalidDecimals, AssetNotEnabled} from "./CredditErrors.sol";
 import {WadMath} from "../libraries/WadMath.sol";
+import {CredditRoles} from "../libraries/CredditRole.sol";
 
 /// @notice Custom Errors for the CredditAssetRegistry contract
 error AssetNotListed(address token);
-error AssetNotEnabled(address token);
 error AssetAlreadyListed(address token);
 error InvalidMaxExposure(uint256 maxExposure);
 error ZeroFactor();
@@ -117,7 +118,7 @@ contract CredditAssetRegistry is CredditCore {
     function initialize(address admin) external initializer {
         if (admin == address(0)) revert ZeroAddressProvided();
         __CredditCore_init(admin);
-        _grantRole(ASSET_ADMIN_ROLE, admin);
+        _grantRole(CredditRoles.ASSET_ADMIN_ROLE, admin);
     }
 
     /// @notice Adds a new asset to the registry.
@@ -136,7 +137,7 @@ contract CredditAssetRegistry is CredditCore {
         uint16 liquidationBonusBps,
         uint256 maxExposure,
         uint8 decimals
-    ) external onlyRole(ASSET_ADMIN_ROLE) {
+    ) external onlyRole(CredditRoles.ASSET_ADMIN_ROLE) {
         if (maxExposure == 0) revert InvalidMaxExposure(maxExposure);
         if (decimals > 30) revert InvalidDecimals(decimals); // Revert unreasonable precision (e.g. >18 or >30)
 
@@ -176,7 +177,9 @@ contract CredditAssetRegistry is CredditCore {
     /// @param token The address of the token.
     /// @dev This function will revert if the asset is not listed or if the asset is not enabled.
     /// @dev This function will also revert if the asset is not paused.
-    function removeAsset(address token) external onlyRole(ASSET_ADMIN_ROLE) {
+    function removeAsset(
+        address token
+    ) external onlyRole(CredditRoles.ASSET_ADMIN_ROLE) {
         if (!assetConfig[token].isListed) revert AssetNotListed(token);
         if (!assetConfig[token].isEnabled) revert AssetNotEnabled(token);
         assetConfig[token].isListed = false;
@@ -192,7 +195,7 @@ contract CredditAssetRegistry is CredditCore {
         uint16 liquidationThresholdBps,
         uint16 liquidationPenaltyBps,
         uint16 liquidationBonusBps
-    ) external onlyRole(ASSET_ADMIN_ROLE) {
+    ) external onlyRole(CredditRoles.ASSET_ADMIN_ROLE) {
         if (!assetConfig[token].isListed) revert AssetNotListed(token);
         if (!assetConfig[token].isEnabled) revert AssetNotEnabled(token);
         _validateRiskParams(
@@ -223,7 +226,7 @@ contract CredditAssetRegistry is CredditCore {
     function setMaxExposure(
         address token,
         uint256 maxExposure
-    ) external onlyRole(ASSET_ADMIN_ROLE) {
+    ) external onlyRole(CredditRoles.ASSET_ADMIN_ROLE) {
         if (!assetConfig[token].isListed) revert AssetNotListed(token);
         if (!assetConfig[token].isEnabled) revert AssetNotEnabled(token);
         assetConfig[token].maxExposure = maxExposure;
@@ -235,7 +238,7 @@ contract CredditAssetRegistry is CredditCore {
     /// @dev This function will revert if the asset is not listed.
     function toggleEnableStatus(
         address token
-    ) external onlyRole(ASSET_ADMIN_ROLE) {
+    ) external onlyRole(CredditRoles.ASSET_ADMIN_ROLE) {
         if (!assetConfig[token].isListed) revert AssetNotListed(token);
         assetConfig[token].isEnabled = !assetConfig[token].isEnabled;
         emit AssetEnabledStatusUpdated(token, assetConfig[token].isEnabled);

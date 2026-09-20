@@ -3,29 +3,23 @@ pragma solidity ^0.8.27;
 
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "./CredditErrors.sol";
+import {ZeroAddressProvided} from "./CredditErrors.sol";
+import {CredditRoles} from "../libraries/CredditRole.sol";
 
 /// @title CredditCore
 /// @notice Abstract base contains shared storage and access control.
 abstract contract CredditCore is
     Initializable,
     OwnableUpgradeable,
+    PausableUpgradeable,
     AccessControlUpgradeable,
     ReentrancyGuard,
     UUPSUpgradeable
 {
-    /// @notice Role used to protect asset configuration.
-    bytes32 public constant ASSET_ADMIN_ROLE = keccak256("ASSET_ADMIN_ROLE");
-
-    /// @notice Role used to pause the system.
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-
-    /// @notice Role used to update risk parameters.
-    bytes32 public constant RISK_ADMIN_ROLE = keccak256("RISK_ADMIN_ROLE");
-
     /// @notice Emitted when the system is paused.
     /// @param pauser The address that performed the action.
     /// @param timestamp The time of the action.
@@ -49,13 +43,27 @@ abstract contract CredditCore is
         address defaultAdmin
     ) internal onlyInitializing {
         if (defaultAdmin == address(0)) revert ZeroAddressProvided();
+        __Pausable_init();
         __Ownable_init(defaultAdmin);
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+        _grantRole(CredditRoles.PAUSER_ROLE, defaultAdmin);
     }
 
     /// @dev Required by UUPSUpgradeable to authorize contract upgrades.
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    /// @notice Pauses the contract.
+    /// @dev Only callable by the PAUSER_ROLE.
+    function pause() public onlyRole(CredditRoles.PAUSER_ROLE) {
+        _pause();
+    }
+
+    /// @notice Unpauses the contract.
+    /// @dev Only callable by the PAUSER_ROLE.
+    function unpause() public onlyRole(CredditRoles.PAUSER_ROLE) {
+        _unpause();
+    }
 }

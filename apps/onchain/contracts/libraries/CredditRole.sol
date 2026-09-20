@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.27;
+
+/// @title CredditRoles
+/// @notice Central registry of all role identifiers used across the protocol.
+library CredditRoles {
+    /// @notice Role used to protect asset configuration.
+    bytes32 public constant ASSET_ADMIN_ROLE = keccak256("ASSET_ADMIN_ROLE");
+
+    /// @notice Role used to pause the system.
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+
+    /// @notice Role used to update risk parameters.
+    bytes32 public constant RISK_ADMIN_ROLE = keccak256("RISK_ADMIN_ROLE");
+}
