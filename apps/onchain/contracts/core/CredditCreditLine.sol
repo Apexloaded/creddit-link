@@ -69,6 +69,20 @@ contract CredditCreditLine is CredditCore {
     /// @dev Timestamp of the last interest accrual.
     uint256 public lastAccrualTimestamp;
 
+    /// @notice Struct to group variables and cleanly pass execution state between helpers
+    /// @param debtToCover The amount of USDG to liquidate collateral for.
+    /// @param debtToCoverWad The amount of USDG to liquidate collateral for in 18 decimals.
+    /// @param totalCollateralToSeize The total collateral to seize.
+    /// @param liquidatorReward The liquidator reward.
+    /// @param protocolFee The protocol fee.
+    struct LiquidationAmounts {
+        uint256 debtToCover;
+        uint256 debtToCoverWad;
+        uint256 totalCollateralToSeize;
+        uint256 liquidatorReward;
+        uint256 protocolFee;
+    }
+
     /// @notice Emitted when debt is issued.
     /// @param user The address of the user.
     /// @param amountWad The amount of debt issued.
@@ -328,142 +342,25 @@ contract CredditCreditLine is CredditCore {
         address borrower,
         address debtAsset,
         uint256 debtToCover
-    ) external {
+    ) external nonReentrant whenNotPaused {
         if (debtToCover == 0) revert ZeroAmount();
         _syncDebtIndex();
 
-        uint256 debtWad = _debt(borrower);
-        if (!riskEngine.isLiquidatable(address(this), borrower, debtWad))
-            revert PositionNotLiquidatable(borrower, debtWad);
-
-        uint256 debtToCoverWad = debtToCover.toWad(usdgDecimals);
-
-        // Cap repayment to actual user debt to prevent over-liquidation
-        if (debtToCoverWad > debtWad) {
-            debtToCoverWad = debtWad;
-        }
-
-        uint256 closeFactorWad = riskEngine.liquidationCloseFactorWad();
-        uint256 maxRepayWad = debtWad.wadMulDown(closeFactorWad);
-
-        if (debtToCoverWad < debtWad && debtToCoverWad > maxRepayWad) {
-            revert CloseFactorExceeded(debtToCoverWad, maxRepayWad);
-        }
-
-        // Read configuration from the registry (Registry acts strictly as a data provider)
-        CredditAssetRegistry.AssetConfig memory cfg = registry.getAsset(
-            debtAsset
+        // Step 1: Validate position and cap debt repayment limits
+        uint256 debtToCoverWad = _validateAndCapRepayment(
+            borrower,
+            debtToCover
         );
 
-        // Get prices via Oracle
-        uint256 collateralPriceWad = oracle.getUsdPrice(debtAsset);
-        uint256 usdgPriceWad = oracle.getUsdPrice(address(usdg));
-
-        // Convert debt covered into true 18-decimal USD Value
-        uint256 debtValueUsdWad = debtToCoverWad.wadMulDown(usdgPriceWad);
-
-        // Total collateral to seize = debt value + penalty
-        uint256 totalCollateralToSeize = CreditRiskMath.collateralToSeize(
-            debtValueUsdWad,
-            collateralPriceWad,
-            cfg.liquidationPenaltyBps,
-            cfg.decimals
-        );
-
-        // Check borrower balance against total seized amount
-        uint256 availableCollateral = userCollateralBalance[borrower][
-            debtAsset
-        ];
-
-        // --------------------------------------------------------------------
-        // DYNAMIC COLLATERAL CAPPING
-        // --------------------------------------------------------------------
-        if (totalCollateralToSeize > availableCollateral) {
-            if (availableCollateral == 0) {
-                revert InsufficientSeizableCollateral(
-                    debtAsset,
-                    totalCollateralToSeize,
-                    availableCollateral
-                );
-            }
-
-            // Cap the collateral seizure to the maximum available user balance
-            totalCollateralToSeize = availableCollateral;
-
-            // Recalculate max allowable debt cover via library
-            debtToCoverWad = CreditRiskMath.calculateMaxCoverableDebt(
-                availableCollateral,
-                collateralPriceWad,
-                usdgPriceWad,
-                cfg.liquidationPenaltyBps,
-                cfg.decimals
-            );
-
-            // Update debtValueUsdWad to match the new capped debtToCoverWad!
-            debtValueUsdWad = debtToCoverWad.wadMulDown(usdgPriceWad);
-        }
-
-        // Convert finalized 18-decimal debtToCoverWad to native token decimals for transfers/events
-        debtToCover = debtToCoverWad.fromWadUp(usdgDecimals);
-        // Collateral capping can shrink the coverable debt to nothing
-        if (debtToCover == 0) revert ZeroAmount();
-
-        // Calculate liquidator reward: net amount after penalty
-        uint256 liquidatorReward = CreditRiskMath.collateralToSeize(
-            debtValueUsdWad,
-            collateralPriceWad,
-            cfg.liquidationBonusBps,
-            cfg.decimals
-        );
-
-        // Safety cap reward to totalCollateralToSeize
-        if (liquidatorReward > totalCollateralToSeize) {
-            liquidatorReward = totalCollateralToSeize;
-        }
-
-        // Protocol cut = penalty amount (difference between total seize and reward)
-        uint256 protocolFee = totalCollateralToSeize > liquidatorReward
-            ? totalCollateralToSeize - liquidatorReward
-            : 0;
-
-        // Calculate exact shares to burn using `wadDivUp`
-        uint256 sharesToRemove = debtToCoverWad.wadDivUp(debtIndexWad);
-        if (sharesToRemove > debtShares[borrower]) {
-            sharesToRemove = debtShares[borrower];
-        }
-
-        // Update Debt Shares
-        debtShares[borrower] -= sharesToRemove;
-        totalDebtShares -= sharesToRemove;
-
-        // Update Local Collateral Ledger
-        userCollateralBalance[borrower][debtAsset] =
-            availableCollateral -
-            totalCollateralToSeize;
-        totalDeposited[debtAsset] -= totalCollateralToSeize;
-        if (availableCollateral == totalCollateralToSeize) {
-            _removeCollateralAsset(borrower, debtAsset);
-        }
-
-        // Repay debt: pull USDG from the liquidator and repay the borrower's
-        // debt through the lending router (reverts if the router cannot apply it).
-        _repayViaRouter(msg.sender, borrower, debtToCover, debtToCoverWad);
-
-        // Transfer seizure to liquidator (amount after protocol fee)
-        IERC20(debtAsset).safeTransfer(msg.sender, liquidatorReward);
-
-        // Transfer penalty amount to protocol treasury
-        if (protocolFee > 0) {
-            // TODO: implement treasury
-        }
-
-        emit Liquidated(
-            msg.sender,
+        // Step 2: Compute oracle prices, dynamic collateral capping, and fee breakdowns
+        LiquidationAmounts memory amounts = _calculateLiquidationSeizure(
             borrower,
             debtAsset,
-            debtToCoverWad,
-            totalCollateralToSeize
+            debtToCoverWad
         );
+
+        // Step 3: Apply state changes, burn shares, repay debt, and transfer tokens
+        _executeLiquidationState(borrower, debtAsset, amounts);
     }
 
     /*********************************************************************
@@ -522,6 +419,174 @@ contract CredditCreditLine is CredditCore {
         }
 
         lastAccrualTimestamp = block.timestamp;
+    }
+
+    /// @notice Validates position liquidatability and enforces close factor constraints.
+    /// @param borrower The address of the user to liquidate collateral for.
+    /// @param debtToCover The amount of USDG to liquidate collateral for.
+    /// @return debtToCoverWad The amount of USDG to liquidate collateral for in 18 decimals.
+    function _validateAndCapRepayment(
+        address borrower,
+        uint256 debtToCover
+    ) internal view returns (uint256 debtToCoverWad) {
+        uint256 debtWad = _debt(borrower);
+
+        bool isLiquidatable = riskEngine.isLiquidatable(
+            address(this),
+            borrower,
+            debtWad
+        );
+        if (!isLiquidatable) {
+            revert PositionNotLiquidatable(borrower, debtWad);
+        }
+
+        debtToCoverWad = debtToCover.toWad(usdgDecimals);
+
+        // Cap repayment to actual user debt to prevent over-liquidation
+        if (debtToCoverWad > debtWad) {
+            debtToCoverWad = debtWad;
+        }
+
+        uint256 closeFactorWad = riskEngine.liquidationCloseFactorWad();
+        uint256 maxRepayWad = debtWad.wadMulDown(closeFactorWad);
+
+        if (debtToCoverWad < debtWad && debtToCoverWad > maxRepayWad) {
+            revert CloseFactorExceeded(debtToCoverWad, maxRepayWad);
+        }
+    }
+
+    /// @notice Handles oracle price fetching and computes collateral seizure, dynamic capping, and fee splits.
+    /// @param borrower The address of the user to liquidate collateral for.
+    /// @param debtAsset The address of the asset to liquidate collateral for.
+    /// @param debtToCoverWad The amount of USDG to liquidate collateral for in 18 decimals.
+    /// @return amounts The collateral seizure amounts.
+    function _calculateLiquidationSeizure(
+        address borrower,
+        address debtAsset,
+        uint256 debtToCoverWad
+    ) internal view returns (LiquidationAmounts memory amounts) {
+        CredditAssetRegistry.AssetConfig memory cfg = registry.getAsset(
+            debtAsset
+        );
+
+        uint256 collateralPriceWad = oracle.getUsdPrice(debtAsset);
+        uint256 usdgPriceWad = oracle.getUsdPrice(address(usdg));
+
+        uint256 debtValueUsdWad = debtToCoverWad.wadMulDown(usdgPriceWad);
+
+        // Total collateral to seize = debt value + penalty
+        amounts.totalCollateralToSeize = CreditRiskMath.collateralToSeize(
+            debtValueUsdWad,
+            collateralPriceWad,
+            cfg.liquidationPenaltyBps,
+            cfg.decimals
+        );
+
+        uint256 availableCollateral = userCollateralBalance[borrower][
+            debtAsset
+        ];
+
+        // Dynamic Collateral Capping
+        if (amounts.totalCollateralToSeize > availableCollateral) {
+            if (availableCollateral == 0) {
+                revert InsufficientSeizableCollateral(
+                    debtAsset,
+                    amounts.totalCollateralToSeize,
+                    availableCollateral
+                );
+            }
+
+            amounts.totalCollateralToSeize = availableCollateral;
+
+            debtToCoverWad = CreditRiskMath.calculateMaxCoverableDebt(
+                availableCollateral,
+                collateralPriceWad,
+                usdgPriceWad,
+                cfg.liquidationPenaltyBps,
+                cfg.decimals
+            );
+
+            debtValueUsdWad = debtToCoverWad.wadMulDown(usdgPriceWad);
+        }
+
+        amounts.debtToCoverWad = debtToCoverWad;
+        amounts.debtToCover = debtToCoverWad.fromWadUp(usdgDecimals);
+
+        if (amounts.debtToCover == 0) revert ZeroAmount();
+
+        // Calculate liquidator reward vs protocol fee
+        amounts.liquidatorReward = CreditRiskMath.collateralToSeize(
+            debtValueUsdWad,
+            collateralPriceWad,
+            cfg.liquidationBonusBps,
+            cfg.decimals
+        );
+
+        if (amounts.liquidatorReward > amounts.totalCollateralToSeize) {
+            amounts.liquidatorReward = amounts.totalCollateralToSeize;
+        }
+
+        amounts.protocolFee = amounts.totalCollateralToSeize >
+            amounts.liquidatorReward
+            ? amounts.totalCollateralToSeize - amounts.liquidatorReward
+            : 0;
+    }
+
+    /// @notice Updates storage ledgers, burns debt shares, executes transfers, and emits event.
+    /// @param borrower The address of the user to liquidate collateral for.
+    /// @param debtAsset The address of the asset to liquidate collateral for.
+    /// @param amounts The collateral seizure amounts.
+    function _executeLiquidationState(
+        address borrower,
+        address debtAsset,
+        LiquidationAmounts memory amounts
+    ) internal {
+        // Calculate exact shares to burn using wadDivUp
+        uint256 sharesToRemove = amounts.debtToCoverWad.wadDivUp(debtIndexWad);
+        if (sharesToRemove > debtShares[borrower]) {
+            sharesToRemove = debtShares[borrower];
+        }
+
+        // Update Debt Shares
+        debtShares[borrower] -= sharesToRemove;
+        totalDebtShares -= sharesToRemove;
+
+        // Update Local Collateral Ledger
+        uint256 availableCollateral = userCollateralBalance[borrower][
+            debtAsset
+        ];
+        userCollateralBalance[borrower][debtAsset] =
+            availableCollateral -
+            amounts.totalCollateralToSeize;
+        totalDeposited[debtAsset] -= amounts.totalCollateralToSeize;
+
+        if (availableCollateral == amounts.totalCollateralToSeize) {
+            _removeCollateralAsset(borrower, debtAsset);
+        }
+
+        // Repay debt through router
+        _repayViaRouter(
+            msg.sender,
+            borrower,
+            amounts.debtToCover,
+            amounts.debtToCoverWad
+        );
+
+        // Transfer seized collateral reward to liquidator
+        IERC20(debtAsset).safeTransfer(msg.sender, amounts.liquidatorReward);
+
+        // Protocol fee logic
+        if (amounts.protocolFee > 0) {
+            // TODO: implement treasury transfer
+        }
+
+        emit Liquidated(
+            msg.sender,
+            borrower,
+            debtAsset,
+            amounts.debtToCoverWad,
+            amounts.totalCollateralToSeize
+        );
     }
 
     /// @notice Removes an asset from a user's active collateral set and clears its flag,
