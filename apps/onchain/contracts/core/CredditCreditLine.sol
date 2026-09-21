@@ -2,12 +2,14 @@
 pragma solidity ^0.8.27;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {CredditCore} from "./CredditCore.sol";
 import {CredditAssetRegistry} from "./CredditAssetRegistry.sol";
 import {CredditRiskEngine} from "./CredditRiskEngine.sol";
+import {WadMath} from "../libraries/WadMath.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {ZeroAddressProvided, ZeroAmount, AssetNotEnabled} from "./CredditErrors.sol";
 
@@ -27,15 +29,25 @@ error InsufficientCollateralBalance(
 contract CredditCreditLine is CredditCore {
     using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for IERC20;
+    using WadMath for uint256;
 
     /// @dev Reference to the asset registry contract.
-    CredditAssetRegistry public assetRegistry;
+    CredditAssetRegistry public registry;
 
     /// @dev Reference to the risk engine contract.
     CredditRiskEngine public riskEngine;
 
     /// @dev The USDG token contract.
     IERC20 public usdg;
+    /// @dev The number of decimals of the USDG token.
+    uint8 public usdgDecimals;
+
+    /// @dev The debt index for USDG. Initialized to 1e18 in `initialize`.
+    uint256 public debtIndexWad = WadMath.WAD;
+    /// @dev Total number of debt shares across all users.
+    uint256 public totalDebtShares;
+    /// @dev Timestamp of the last interest accrual.
+    uint256 public lastAccrualTimestamp;
 
     /// @notice Emitted when collateral is deposited.
     /// @param user The address of the user.
@@ -97,9 +109,13 @@ contract CredditCreditLine is CredditCore {
         _grantRole(CredditRoles.RISK_ADMIN_ROLE, admin);
 
         // Initialize Asset Registry and USDG
-        assetRegistry = CredditAssetRegistry(_assetRegistry);
+        registry = CredditAssetRegistry(_assetRegistry);
         riskEngine = CredditRiskEngine(_riskEngine);
         usdg = IERC20(_usdg);
+        usdgDecimals = IERC20Metadata(_usdg).decimals();
+
+        // Initialize timestamp to contract deployment block
+        lastAccrualTimestamp = block.timestamp;
     }
 
     /// @notice Deposits collateral into the protocol.
@@ -111,7 +127,7 @@ contract CredditCreditLine is CredditCore {
     ) external whenNotPaused nonReentrant {
         if (amount == 0) revert ZeroAmount();
 
-        CredditAssetRegistry.AssetConfig memory cfg = assetRegistry.getAsset(
+        CredditAssetRegistry.AssetConfig memory cfg = registry.getAsset(
             asset
         );
         if (!cfg.isEnabled) revert AssetNotEnabled(asset);
@@ -180,6 +196,25 @@ contract CredditCreditLine is CredditCore {
     /// @param amount The amount of USDG to borrow.
     function borrow(uint256 amount) external whenNotPaused nonReentrant {
         if (amount == 0) revert ZeroAmount();
-        
+        _syncDebtIndex();
+
+        uint256 amountWad = amount.toWad(usdgDecimals);
+        uint256 currentUserDebt = _userDebtWad(msg.sender);
+        uint256 newDebt = currentUserDebt + amountWad;
     }
+
+    /*********************************************************************
+     * INTERNAL FUNCTIONS
+     *********************************************************************/
+
+    /// @notice Calculates the debt of the specified user.
+    /// @param user The address of the user.
+    /// @return The debt balance of the specified user in USDG.
+    function _userDebtWad(address user) internal view returns (uint256) {
+        return debtShares[user].wadMulUp(debtIndexWad);
+    }
+
+    /// @notice Syncs the debt index to the current time.
+    /// @dev This function is called by the user when they deposit or withdraw collateral.
+    function _syncDebtIndex() internal {}
 }
