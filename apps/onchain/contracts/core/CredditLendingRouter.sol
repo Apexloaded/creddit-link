@@ -344,6 +344,26 @@ contract CredditLendingRouter is CredditCore {
         return _quote(amount);
     }
 
+    /// @notice Returns the weighted-average base borrow rate across all adapters
+    /// with active debt (fees are not included in the APR).
+    /// If no adapters have debt, returns 0.
+    function currentBorrowAPR() public view returns (uint256 weightedAprBps) {
+        uint256 totalDebt_;
+        for (uint256 i; i < _adapters.length; ++i) {
+            address adapter = address(_adapters[i]);
+            if (!adapters[adapter].enabled) continue;
+
+            uint256 d = _adapters[i].currentDebt();
+            if (d == 0) continue;
+
+            (uint256 rate, ) = _adapters[i].quoteBorrow(d);
+            totalDebt_ += d;
+            weightedAprBps += d * rate;
+        }
+        if (totalDebt_ == 0) return 0;
+        return weightedAprBps / totalDebt_;
+    }
+
     /// @notice Returns the number of adapters in the router.
     /// @return The number of adapters in the router.
     function adapterCount() external view returns (uint256) {
