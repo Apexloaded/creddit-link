@@ -17,7 +17,9 @@ error IncompleteRound(address asset);
 error StalePrice(address asset, uint256 updatedAt, uint256 stalenessThreshold);
 
 /// @title CredditOracle
-/// @notice The CredditLink protocol oracle contract.
+/// @notice Hardened Chainlink-compatible price oracle. Feed <-> asset mappings
+/// may ONLY be set by the asset registry (via ASSET_ADMIN_ROLE) — users can
+/// never supply an arbitrary oracle address for an asset.
 contract CredditOracle is CredditCore, IPriceOracle {
     using WadMath for uint256;
 

@@ -10,6 +10,9 @@ import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
 import {WadMath} from "../libraries/WadMath.sol";
 import {CreditRiskMath} from "../libraries/CreditRiskMath.sol";
 
+/// @notice Custom errors for the CredditOracle contract
+error InvalidCapBps(uint256 cap);
+
 /// @title CredditRiskEngine
 /// @notice The CredditLink protocol risk engine contract.
 /// @dev It is responsible for all risk calculations and risk management operations.
@@ -31,6 +34,18 @@ contract CredditRiskEngine is CredditCore {
     /// @notice Max fraction of a position's debt that can be repaid in a single
     /// liquidation call, WAD fraction.
     uint256 public liquidationCloseFactorWad;
+
+    /// @notice Emitted when the credit utilization cap is updated.
+    /// @param newCapWad The new credit utilization cap.
+    event UtilizationCapUpdated(uint256 newCapWad);
+
+    /// @notice Emitted when the maximum number of collateral assets per user is updated.
+    /// @param newMax The new maximum number of collateral assets per user.
+    event MaxCollateralAssetsUpdated(uint256 newMax);
+
+    /// @notice Emitted when the liquidation close factor is updated.
+    /// @param newCloseFactorWad The new liquidation close factor.
+    event LiquidationCloseFactorUpdated(uint256 newCloseFactorWad);
 
     /// @notice Initialized only once when the contract is deployed.
     /// @param admin The address of the admin (the deployer), also pauser and DEFAULT_ADMIN_ROLE.
@@ -65,7 +80,42 @@ contract CredditRiskEngine is CredditCore {
         liquidationCloseFactorWad = _liquidationCloseFactorWad;
     }
 
-    /// @dev Calculates the credit limit for a specific user and collateral source.
+    /// @notice Updates the credit utilization cap.
+    /// @param newCapWad The new credit utilization cap.
+    function setCreditUtilizationCap(
+        uint256 newCapWad
+    ) external onlyRole(CredditRoles.RISK_ADMIN_ROLE) {
+        if (newCapWad == 0 || newCapWad > WadMath.WAD)
+            revert InvalidCapBps(newCapWad);
+        creditUtilizationCapWad = newCapWad;
+        emit UtilizationCapUpdated(newCapWad);
+    }
+
+    /// @notice Updates the maximum number of collateral assets per user.
+    /// @param newMax The new maximum number of collateral assets per user.
+    function setMaxCollateralAssetsPerUser(
+        uint256 newMax
+    ) external onlyRole(CredditRoles.RISK_ADMIN_ROLE) {
+        maxCollateralAssetsPerUser = newMax;
+        emit MaxCollateralAssetsUpdated(newMax);
+    }
+
+    /// @notice Updates the liquidation close factor.
+    /// @param newCloseFactorWad The new liquidation close factor.
+    function setLiquidationCloseFactor(
+        uint256 newCloseFactorWad
+    ) external onlyRole(CredditRoles.RISK_ADMIN_ROLE) {
+        if (newCloseFactorWad == 0 || newCloseFactorWad > WadMath.WAD)
+            revert InvalidCapBps(newCloseFactorWad);
+        liquidationCloseFactorWad = newCloseFactorWad;
+        emit LiquidationCloseFactorUpdated(newCloseFactorWad);
+    }
+
+    /*********************************************************************
+     * EXTERNAL VIEW FUNCTIONS
+     *********************************************************************/
+
+    /// @notice Calculates the credit limit for a specific user and collateral source.
     /// @param source The collateral source contract.
     /// @param user The address of the user.
     /// @return The credit limit for the user.
@@ -80,7 +130,7 @@ contract CredditRiskEngine is CredditCore {
             );
     }
 
-    /// @dev Calculates the total risk-adjusted value of collateral for a specific user.
+    /// @notice Calculates the total risk-adjusted value of collateral for a specific user.
     /// @param source The collateral source contract.
     /// @param user The address of the user.
     /// @return total The total risk-adjusted value of the collateral.
@@ -105,7 +155,7 @@ contract CredditRiskEngine is CredditCore {
         }
     }
 
-    /// @dev Calculates the liquidation value of a collateral source for a specific user.
+    /// @notice Calculates the liquidation value of a collateral source for a specific user.
     /// @param source The collateral source contract.
     /// @param user The address of the user.
     /// @return total The liquidation value of the collateral source for the user.
@@ -130,6 +180,11 @@ contract CredditRiskEngine is CredditCore {
         }
     }
 
+    /// @notice Checks if a user is liquidatable.
+    /// @param source The collateral source contract.
+    /// @param user The address of the user.
+    /// @param debt The amount of debt.
+    /// @return liquidatable Whether the user is liquidatable.
     function isLiquidatable(
         address source,
         address user,

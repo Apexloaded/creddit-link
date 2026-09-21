@@ -159,11 +159,7 @@ contract CredditCreditLine is CredditCore {
         // Initialize CredditCore contract
         __CredditCore_init(admin);
 
-        // Grant roles to admin
-        _grantRole(CredditRoles.PAUSER_ROLE, admin);
-        _grantRole(CredditRoles.RISK_ADMIN_ROLE, admin);
-
-        // Initialize Asset Registry and USDG
+        // Initialize callable contracts
         registry = CredditAssetRegistry(_assetRegistry);
         riskEngine = CredditRiskEngine(_riskEngine);
         oracle = IPriceOracle(_oracle);

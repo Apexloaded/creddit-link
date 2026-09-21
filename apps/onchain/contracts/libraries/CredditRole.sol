@@ -12,4 +12,11 @@ library CredditRoles {
 
     /// @notice Role used to update risk parameters.
     bytes32 public constant RISK_ADMIN_ROLE = keccak256("RISK_ADMIN_ROLE");
+
+    /// @notice Role used to update adapter configurations.
+    bytes32 public constant ADAPTER_ADMIN_ROLE =
+        keccak256("ADAPTER_ADMIN_ROLE");
+
+    /// @notice Role used by CredditCreditLine to call other contracts
+    bytes32 public constant CREDIT_LINE_ROLE = keccak256("CREDIT_LINE_ROLE");
 }
