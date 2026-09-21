@@ -260,23 +260,30 @@ contract CredditAssetRegistry is CredditCore {
     }
 
     /// @notice Returns all listed assets in the registry.
+    /// @param onlyEnabled If true, returns only assets that are enabled.
     /// @return An array of AssetConfig structs for all listed assets.
-    function listAssets() public view returns (AssetConfig[] memory) {
+    function listAssets(
+        bool onlyEnabled
+    ) public view returns (AssetConfig[] memory) {
         uint256 count = 0;
-        for (uint i = 0; i < _assets.length; i++) {
-            if (assetConfig[_assets[i]].isListed) {
+        for (uint256 i = 0; i < _assets.length; i++) {
+            AssetConfig memory config = assetConfig[_assets[i]];
+            if (config.isListed && (config.isEnabled || !onlyEnabled)) {
                 count++;
             }
         }
-        AssetConfig[] memory listedAssets = new AssetConfig[](count);
+
+        AssetConfig[] memory assetsToReturn = new AssetConfig[](count);
         uint256 index = 0;
-        for (uint i = 0; i < _assets.length; i++) {
-            if (assetConfig[_assets[i]].isListed) {
-                listedAssets[index] = assetConfig[_assets[i]];
+        for (uint256 i = 0; i < _assets.length; i++) {
+            AssetConfig memory config = assetConfig[_assets[i]];
+            if (config.isListed && (config.isEnabled || !onlyEnabled)) {
+                assetsToReturn[index] = config;
                 index++;
             }
         }
-        return listedAssets;
+
+        return assetsToReturn;
     }
 
     /// @notice Checks if an asset is listed in the registry.

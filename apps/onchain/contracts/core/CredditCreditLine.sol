@@ -10,8 +10,10 @@ import {CredditCore} from "./CredditCore.sol";
 import {CredditAssetRegistry} from "./CredditAssetRegistry.sol";
 import {CredditRiskEngine} from "./CredditRiskEngine.sol";
 import {WadMath} from "../libraries/WadMath.sol";
+import {CreditRiskMath} from "../libraries/CreditRiskMath.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {ZeroAddressProvided, ZeroAmount, AssetNotEnabled} from "./CredditErrors.sol";
+import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
 
 /// @notice Custom Errors for the CredditCore contract
 error MaxExposureExceeded(address asset, uint256 newTotal, uint256 maxExposure);
@@ -20,6 +22,15 @@ error InsufficientCollateralBalance(
     address asset,
     uint256 requested,
     uint256 balance
+);
+error NoActiveDebt(address user);
+error ExceedsCreditLimit(uint256 requestedDebt, uint256 creditLimit);
+error PositionNotLiquidatable(address user, uint256 debt);
+error CloseFactorExceeded(uint256 debtToCover, uint256 maxRepay);
+error InsufficientSeizableCollateral(
+    address asset,
+    uint256 requested,
+    uint256 available
 );
 
 /// @title CredditCreditLine
@@ -37,6 +48,9 @@ contract CredditCreditLine is CredditCore {
     /// @dev Reference to the risk engine contract.
     CredditRiskEngine public riskEngine;
 
+    /// @dev Reference to the risk engine contract.
+    IPriceOracle public oracle;
+
     /// @dev The USDG token contract.
     IERC20 public usdg;
     /// @dev The number of decimals of the USDG token.
@@ -48,6 +62,46 @@ contract CredditCreditLine is CredditCore {
     uint256 public totalDebtShares;
     /// @dev Timestamp of the last interest accrual.
     uint256 public lastAccrualTimestamp;
+
+    /// @notice Emitted when debt is issued.
+    /// @param user The address of the user.
+    /// @param amountWad The amount of debt issued.
+    /// @param sharesMintedWad The number of debt shares minted.
+    /// @param newTotalDebtWad The new total debt.
+    event Borrowed(
+        address indexed user,
+        uint256 amountWad,
+        uint256 sharesMintedWad,
+        uint256 newTotalDebtWad
+    );
+
+    /// @notice Emitted when USDG is repaid.
+    /// @param payer The address of the payer.
+    /// @param user The address of the user.
+    /// @param amountRepaid The amount of USDG repaid.
+    /// @param sharesBurned The number of debt shares burned.
+    /// @param newTotalDebt The new total debt.
+    event Repaid(
+        address indexed payer,
+        address indexed user,
+        uint256 amountRepaid,
+        uint256 sharesBurned,
+        uint256 newTotalDebt
+    );
+
+    /// @notice Emitted when collateral is liquidated.
+    /// @param liquidator The address of the liquidator.
+    /// @param user The address of the user.
+    /// @param collateralAsset The asset that was liquidated.
+    /// @param debtAmount The amount of debt that was liquidated.
+    /// @param collateralToSeize The amount of collateral that was liquidated.
+    event Liquidated(
+        address indexed liquidator,
+        address indexed user,
+        address indexed collateralAsset,
+        uint256 debtAmount,
+        uint256 collateralToSeize
+    );
 
     /// @notice Emitted when collateral is deposited.
     /// @param user The address of the user.
@@ -93,7 +147,8 @@ contract CredditCreditLine is CredditCore {
         address admin,
         address _assetRegistry,
         address _usdg,
-        address _riskEngine
+        address _riskEngine,
+        address _oracle
     ) external initializer {
         if (
             admin == address(0) ||
@@ -111,6 +166,7 @@ contract CredditCreditLine is CredditCore {
         // Initialize Asset Registry and USDG
         registry = CredditAssetRegistry(_assetRegistry);
         riskEngine = CredditRiskEngine(_riskEngine);
+        oracle = IPriceOracle(_oracle);
         usdg = IERC20(_usdg);
         usdgDecimals = IERC20Metadata(_usdg).decimals();
 
@@ -127,9 +183,7 @@ contract CredditCreditLine is CredditCore {
     ) external whenNotPaused nonReentrant {
         if (amount == 0) revert ZeroAmount();
 
-        CredditAssetRegistry.AssetConfig memory cfg = registry.getAsset(
-            asset
-        );
+        CredditAssetRegistry.AssetConfig memory cfg = registry.getAsset(asset);
         if (!cfg.isEnabled) revert AssetNotEnabled(asset);
 
         uint256 newTotal = totalDeposited[asset] + amount;
@@ -199,22 +253,256 @@ contract CredditCreditLine is CredditCore {
         _syncDebtIndex();
 
         uint256 amountWad = amount.toWad(usdgDecimals);
-        uint256 currentUserDebt = _userDebtWad(msg.sender);
+        uint256 currentUserDebt = _debt(msg.sender);
         uint256 newDebt = currentUserDebt + amountWad;
+
+        uint256 limitWad = riskEngine.creditLimit(address(this), msg.sender);
+        if (newDebt > limitWad) revert ExceedsCreditLimit(newDebt, limitWad);
+
+        // Mint debt shares rounded UP: the protocol never under-tracks debt.
+        uint256 sharesToMint = amountWad.wadDivUp(debtIndexWad);
+        debtShares[msg.sender] += sharesToMint;
+        totalDebtShares += sharesToMint;
+
+        // TODO: Mint USDG to user here
+
+        emit Borrowed(msg.sender, amountWad, sharesToMint, newDebt);
+    }
+
+    /// @notice Repays USDG debt.
+    /// @param amount The amount of USDG to repay.
+    function repay(uint256 amount) external whenNotPaused nonReentrant {
+        _repay(msg.sender, msg.sender, amount);
+    }
+
+    /// @notice Repays USDG debt on behalf of another user.
+    /// @param user The address of the user to repay debt for.
+    /// @param amount The amount of USDG to repay.
+    function repayFor(
+        address user,
+        uint256 amount
+    ) external whenNotPaused nonReentrant {
+        _repay(msg.sender, user, amount);
+    }
+
+    /// @notice Liquidates the collateral of a user.
+    /// @param borrower The address of the user to liquidate collateral for.
+    /// @param debtAsset The asset to liquidate collateral for.
+    /// @param debtToCover The amount of USDG to liquidate collateral for.
+    /// @dev user can repay partial of the debt or the whole debt
+    /// @dev anyone can call this function to liquidate
+    function liquidate(
+        address borrower,
+        address debtAsset,
+        uint256 debtToCover
+    ) external {
+        if (debtToCover == 0) revert ZeroAmount();
+        _syncDebtIndex();
+
+        uint256 debtWad = _debt(borrower);
+        if (!riskEngine.isLiquidatable(address(this), borrower, debtWad))
+            revert PositionNotLiquidatable(borrower, debtWad);
+
+        uint256 debtToCoverWad = debtToCover.toWad(usdgDecimals);
+
+        // Cap repayment to actual user debt to prevent over-liquidation
+        if (debtToCoverWad > debtWad) {
+            debtToCoverWad = debtWad;
+        }
+
+        uint256 closeFactorWad = riskEngine.liquidationCloseFactorWad();
+        uint256 maxRepayWad = debtWad.wadMulDown(closeFactorWad);
+
+        if (debtToCoverWad < debtWad && debtToCoverWad > maxRepayWad) {
+            revert CloseFactorExceeded(debtToCoverWad, maxRepayWad);
+        }
+
+        // Read configuration from the registry (Registry acts strictly as a data provider)
+        CredditAssetRegistry.AssetConfig memory cfg = registry.getAsset(
+            debtAsset
+        );
+
+        // Get prices via Oracle
+        uint256 collateralPriceWad = oracle.getUsdPrice(debtAsset);
+        uint256 usdgPriceWad = oracle.getUsdPrice(address(usdg));
+
+        // Convert debt covered into true 18-decimal USD Value
+        uint256 debtValueUsdWad = debtToCoverWad.wadMulDown(usdgPriceWad);
+
+        // Total collateral to seize = debt value + penalty
+        uint256 totalCollateralToSeize = CreditRiskMath.collateralToSeize(
+            debtValueUsdWad,
+            collateralPriceWad,
+            cfg.liquidationPenaltyBps,
+            cfg.decimals
+        );
+
+        // Check borrower balance against total seized amount
+        uint256 availableCollateral = userCollateralBalance[borrower][
+            debtAsset
+        ];
+
+        // --------------------------------------------------------------------
+        // DYNAMIC COLLATERAL CAPPING
+        // --------------------------------------------------------------------
+        if (totalCollateralToSeize > availableCollateral) {
+            if (availableCollateral == 0) {
+                revert InsufficientSeizableCollateral(
+                    debtAsset,
+                    totalCollateralToSeize,
+                    availableCollateral
+                );
+            }
+
+            // Cap the collateral seizure to the maximum available user balance
+            totalCollateralToSeize = availableCollateral;
+
+            // Recalculate max allowable debt cover via library
+            debtToCoverWad = CreditRiskMath.calculateMaxCoverableDebt(
+                availableCollateral,
+                collateralPriceWad,
+                usdgPriceWad,
+                cfg.liquidationPenaltyBps,
+                cfg.decimals
+            );
+        }
+
+        // Convert finalized 18-decimal debtToCoverWad to native token decimals for transfers/events
+        debtToCover = debtToCoverWad.fromWadUp(usdgDecimals);
+
+        // Calculate liquidator reward: net amount after penalty
+        uint256 liquidatorReward = CreditRiskMath.collateralToSeize(
+            debtValueUsdWad,
+            collateralPriceWad,
+            cfg.liquidationBonusBps,
+            cfg.decimals
+        );
+
+        // Protocol cut = penalty amount (difference between total seize and reward)
+        uint256 protocolFee = totalCollateralToSeize > liquidatorReward
+            ? totalCollateralToSeize - liquidatorReward
+            : 0;
+
+        // Calculate exact shares to burn using `wadDivUp`
+        uint256 sharesToRemove = debtToCoverWad.wadDivUp(debtIndexWad);
+        if (sharesToRemove > debtShares[borrower]) {
+            sharesToRemove = debtShares[borrower];
+        }
+
+        // Update Debt Shares
+        debtShares[borrower] -= sharesToRemove;
+        totalDebtShares -= sharesToRemove;
+
+        // Update Local Collateral Ledger
+        userCollateralBalance[borrower][debtAsset] =
+            availableCollateral -
+            totalCollateralToSeize;
+        totalDeposited[debtAsset] -= totalCollateralToSeize;
+
+        // Repay debt (Pull USDG from liquidator via Lending Router)
+        // TODO: initiate repay via router
+
+        // Transfer seizure to liquidator (amount after protocol fee)
+        IERC20(debtAsset).safeTransfer(msg.sender, liquidatorReward);
+
+        // Transfer penalty amount to protocol treasury
+        if (protocolFee > 0) {
+            // TODO: implement treasury
+        }
+
+        emit Liquidated(
+            msg.sender,
+            borrower,
+            debtAsset,
+            debtToCoverWad,
+            totalCollateralToSeize
+        );
+    }
+
+    /*********************************************************************
+     * EXTERNAL VIEW FUNCTIONS
+     *********************************************************************/
+
+    /// @notice Returns the amount of collateral for a specific user and asset.
+    /// @param user The address of the user.
+    /// @param asset The address of the asset.
+    /// @return The amount of collateral for the specified user and asset.
+    function collateralOf(
+        address user,
+        address asset
+    ) external view returns (uint256) {
+        return userCollateralBalance[user][asset];
     }
 
     /*********************************************************************
      * INTERNAL FUNCTIONS
      *********************************************************************/
 
-    /// @notice Calculates the debt of the specified user.
-    /// @param user The address of the user.
-    /// @return The debt balance of the specified user in USDG.
-    function _userDebtWad(address user) internal view returns (uint256) {
-        return debtShares[user].wadMulUp(debtIndexWad);
-    }
-
     /// @notice Syncs the debt index to the current time.
     /// @dev This function is called by the user when they deposit or withdraw collateral.
     function _syncDebtIndex() internal {}
+
+    /// @notice Calculates the debt of the specified user.
+    /// @param user The address of the user.
+    /// @return The debt balance of the specified user in USDG.
+    function _debt(address user) internal view returns (uint256) {
+        return debtShares[user].wadMulUp(debtIndexWad);
+    }
+
+    /// @notice Internal helper function to repay USDG debt.
+    /// @param payer The address of the payer.
+    /// @param user The address of the user to repay debt for.
+    /// @param amount The amount of USDG to repay.
+    function _repay(address payer, address user, uint256 amount) internal {
+        if (amount == 0) revert ZeroAmount();
+        _syncDebtIndex();
+
+        uint256 debtWad = _debt(user);
+        if (debtWad == 0) revert NoActiveDebt(user);
+
+        uint256 amountWad = amount.toWad(usdgDecimals);
+
+        uint256 actualAmountRepaid;
+        uint256 actualAmountRepaidWad;
+        uint256 sharesToBurn;
+
+        // --- FULL REPAYMENT ---
+        if (amountWad >= debtWad) {
+            // Round UP token amount to ensure user pays the full required amount for all their shares.
+            actualAmountRepaid = debtWad.fromWadUp(usdgDecimals);
+            actualAmountRepaidWad = debtWad;
+
+            // Burn 100% of the user's debt shares to guarantee complete cleanup and avoid underflows.
+            sharesToBurn = debtShares[user];
+        }
+        // --- PARTIAL REPAYMENT ---
+        else {
+            // Round UP token amount to ensure user pays the full required amount for all their shares.
+            actualAmountRepaid = amount;
+            actualAmountRepaidWad = amountWad;
+
+            // Burn only the required number of shares for this payment.
+            sharesToBurn = amountWad.wadDivUp(debtIndexWad);
+
+            // Safety cap against edge-case rounding overflowing the user's total shares balance
+            if (sharesToBurn > debtShares[user]) {
+                sharesToBurn = debtShares[user];
+            }
+        }
+
+        debtShares[user] -= sharesToBurn;
+        totalDebtShares -= sharesToBurn;
+
+        // TODO: Transfer USDG from payer to the pool
+
+        uint256 remainingDebtWad = _debt(user);
+
+        emit Repaid(
+            payer,
+            user,
+            actualAmountRepaid,
+            sharesToBurn,
+            remainingDebtWad.fromWadDown(usdgDecimals)
+        );
+    }
 }
