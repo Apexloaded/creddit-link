@@ -17,9 +17,7 @@ interface ILendingAdapter {
     function currentDebt() external view returns (uint256);
 
     /// @notice Quotes the borrow amount.
-    function quoteBorrow(
-        uint256 amount
-    ) external view returns (uint256 rateBps, uint256 fee);
+    function quoteBorrow() external view returns (uint256 rateBps, uint256 fee);
 
     /// @notice Borrows the specified amount of tokens from the lending pool.
     function borrow(

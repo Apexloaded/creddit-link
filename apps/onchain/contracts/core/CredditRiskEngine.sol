@@ -62,7 +62,11 @@ contract CredditRiskEngine is CredditCore {
         uint256 _maxCollateralAssetsPerUser,
         uint256 _liquidationCloseFactorWad
     ) external initializer {
-        if (admin == address(0)) revert ZeroAddressProvided();
+        if (
+            admin == address(0) ||
+            _assetRegistry == address(0) ||
+            _oracle == address(0)
+        ) revert ZeroAddressProvided();
 
         // Initialize CredditCore contract
         __CredditCore_init(admin);

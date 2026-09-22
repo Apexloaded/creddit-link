@@ -19,4 +19,10 @@ library CredditRoles {
 
     /// @notice Role used by CredditCreditLine to call other contracts
     bytes32 public constant CREDIT_LINE_ROLE = keccak256("CREDIT_LINE_ROLE");
+
+    /// @notice Role used by CredditRouter to call other contracts
+    bytes32 public constant ROUTER_ROLE = keccak256("ROUTER_ROLE");
+
+    /// @notice Role used to protect liquidity pool configuration
+    bytes32 public constant POOL_ADMIN_ROLE = keccak256("POOL_ADMIN_ROLE");
 }

@@ -356,7 +356,7 @@ contract CredditLendingRouter is CredditCore {
             uint256 d = _adapters[i].currentDebt();
             if (d == 0) continue;
 
-            (uint256 rate, ) = _adapters[i].quoteBorrow(d);
+            (uint256 rate, ) = _adapters[i].quoteBorrow();
             totalDebt_ += d;
             weightedAprBps += d * rate;
         }
@@ -505,7 +505,7 @@ contract CredditLendingRouter is CredditCore {
         uint256 rateBps;
         (ok, rateBps, feeWad) = _probe(
             adapter,
-            abi.encodeCall(ILendingAdapter.quoteBorrow, (take)),
+            abi.encodeCall(ILendingAdapter.quoteBorrow, ()),
             2
         );
         // Reject absurd rates and fees exceeding the borrowed slice
