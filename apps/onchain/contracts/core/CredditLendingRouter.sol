@@ -259,7 +259,7 @@ contract CredditLendingRouter is CredditCore {
                 slice
             );
             // If fees are charged on top of principal, tighten to `received != slice`.
-            if (received == 0)
+            if (received < slice)
                 revert AdapterUnderdelivered(adapterAddr, slice, received);
 
             totalReceived += received;

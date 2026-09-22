@@ -7,81 +7,14 @@ import {CredditOracle, InvalidPrice, InvalidStalenessThreshold, FeedNotConfigure
 import {ZeroAddressProvided} from "../core/CredditErrors.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {AggregatorV3Interface} from "../interfaces/AggregatorV3Interface.sol";
-
-/// @notice Mock Chainlink Aggregator V3 Feed
-contract MockAggregatorV3 is AggregatorV3Interface {
-    uint8 public override decimals;
-    string public override description = "Mock Chainlink Feed";
-    uint256 public override version = 1;
-
-    uint80 private _roundId;
-    int256 private _answer;
-    uint256 private _startedAt;
-    uint256 private _updatedAt;
-    uint80 private _answeredInRound;
-
-    constructor(uint8 _decimals) {
-        decimals = _decimals;
-    }
-
-    function setRoundData(
-        uint80 roundId_,
-        int256 answer_,
-        uint256 startedAt_,
-        uint256 updatedAt_,
-        uint80 answeredInRound_
-    ) external {
-        _roundId = roundId_;
-        _answer = answer_;
-        _startedAt = startedAt_;
-        _updatedAt = updatedAt_;
-        _answeredInRound = answeredInRound_;
-    }
-
-    function getRoundData(
-        uint80 _requestedRoundId
-    )
-        external
-        view
-        returns (
-            uint80 roundId,
-            int256 answer,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        )
-    {
-        return (
-            _requestedRoundId,
-            _answer,
-            _startedAt,
-            _updatedAt,
-            _answeredInRound
-        );
-    }
-
-    function latestRoundData()
-        external
-        view
-        override
-        returns (
-            uint80 roundId,
-            int256 answer,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        )
-    {
-        return (_roundId, _answer, _startedAt, _updatedAt, _answeredInRound);
-    }
-}
+import {MockV3Aggregator} from "../mock/MockV3Aggregator.sol";
 
 contract CredditOracleTest is Test {
     CredditOracle public oracle;
     CredditOracle public oracleImpl;
 
-    MockAggregatorV3 public feed8Decimals;
-    MockAggregatorV3 public feed18Decimals;
+    MockV3Aggregator public feed8Decimals;
+    MockV3Aggregator public feed18Decimals;
 
     address public admin = address(0x111);
     address public alice = address(0x222);
@@ -101,11 +34,11 @@ contract CredditOracleTest is Test {
     function setUp() public {
         vm.startPrank(admin);
 
-        // 1. Deploy Mocks
-        feed8Decimals = new MockAggregatorV3(8); // Standard BTC/USD or ETH/USD feed
-        feed18Decimals = new MockAggregatorV3(18); // 18-decimal feed
+        // 1. Deploy Mocks (fixed trailing comma and added initial answer values)
+        feed8Decimals = new MockV3Aggregator(8, 2000_00000000);
+        feed18Decimals = new MockV3Aggregator(18, int256(2000e18));
 
-        // Set default valid price ($2000 in 8-decimal precision = 2000 * 1e8)
+        // Set default valid price ($2000 in 8-decimal and 18-decimal precision)
         feed8Decimals.setRoundData(
             1,
             2000_00000000,
@@ -115,7 +48,7 @@ contract CredditOracleTest is Test {
         );
         feed18Decimals.setRoundData(
             1,
-            2000e18,
+            int256(2000e18),
             block.timestamp,
             block.timestamp,
             1
