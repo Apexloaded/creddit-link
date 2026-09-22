@@ -11,21 +11,14 @@ import {CredditLiquidityPool, InsufficientLiquidity} from "../core/CredditLiquid
 import {CredditInterestRateModel} from "../core/CredditInterestRateModel.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {ZeroAddressProvided} from "../core/CredditErrors.sol";
-
-contract MockToken is ERC20 {
-    constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
-
-    function mint(address to, uint256 amount) external {
-        _mint(to, amount);
-    }
-}
+import {MockERC20} from "../mock/MockERC20.sol";
 
 contract CredditLiquidityPoolTest is Test {
     CredditLiquidityPool public pool;
     CredditLiquidityPool public poolImpl;
     CredditInterestRateModel public rateModel;
     CredditInterestRateModel public rateModelImpl;
-    MockToken public assetToken;
+    MockERC20 public assetToken;
 
     address public admin = address(0x1);
     address public router = address(0x2);
@@ -46,7 +39,7 @@ contract CredditLiquidityPoolTest is Test {
         vm.startPrank(admin);
 
         // 1. Deploy Asset Token
-        assetToken = new MockToken("USD Stablecoin", "USDG");
+        assetToken = new MockERC20("USD Stablecoin", "USDG", 6, admin);
 
         // 2. Deploy Interest Rate Model
         rateModelImpl = new CredditInterestRateModel();

@@ -41,7 +41,7 @@ contract CredditLendingRouterTest is Test {
         vm.startPrank(admin);
 
         // 1. Deploy Loan Token
-        usdg = new MockERC20("USD Stablecoin", "USDG", 6);
+        usdg = new MockERC20("USD Stablecoin", "USDG", 6, admin);
 
         // 2. Deploy Router via deployCode
         address implAddr = deployCode(
@@ -145,7 +145,7 @@ contract CredditLendingRouterTest is Test {
     }
 
     function test_SetAdapter_RevertIf_AssetMismatch() public {
-        MockERC20 badToken = new MockERC20("Bad", "BAD", 6);
+        MockERC20 badToken = new MockERC20("Bad", "BAD", 6, admin);
         MockLendingAdapter badAdapter = new MockLendingAdapter(
             address(badToken)
         );

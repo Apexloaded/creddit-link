@@ -76,9 +76,9 @@ contract CredditCreditLineTest is Test {
         vm.startPrank(admin);
 
         // 1. Deploy Tokens
-        usdg = new MockERC20("USDG Stablecoin", "USDG", 18);
-        stockTokenA = new MockERC20("Apple Stock Token", "aAAPL", 18);
-        stockTokenB = new MockERC20("Tesla Stock Token", "aTSLA", 18);
+        usdg = new MockERC20("USDG Stablecoin", "USDG", 18, admin);
+        stockTokenA = new MockERC20("Apple Stock Token", "aAAPL", 18, admin);
+        stockTokenB = new MockERC20("Tesla Stock Token", "aTSLA", 18, admin);
 
         // 2. Deploy Asset Registry
         CredditAssetRegistry registryImpl = new CredditAssetRegistry();
@@ -216,7 +216,7 @@ contract CredditCreditLineTest is Test {
     }
 
     function test_DepositCollateral_RevertIf_AssetNotListed() public {
-        MockERC20 unlistedToken = new MockERC20("Unlisted", "UNL", 18);
+        MockERC20 unlistedToken = new MockERC20("Unlisted", "UNL", 18, admin);
 
         vm.prank(alice);
         vm.expectRevert(

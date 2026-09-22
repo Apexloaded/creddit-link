@@ -10,20 +10,7 @@ import {CredditRoles} from "../libraries/CredditRole.sol";
 import {WadMath} from "../libraries/WadMath.sol";
 import {ICollateralSource} from "../interfaces/ICollateralSource.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
-
-// --- Mock Contracts ---
-
-contract MockPriceOracle is IPriceOracle {
-    mapping(address => uint256) public prices;
-
-    function setPrice(address asset, uint256 priceWad) external {
-        prices[asset] = priceWad;
-    }
-
-    function getUsdPrice(address asset) external view returns (uint256) {
-        return prices[asset];
-    }
-}
+import {MockOracle} from "../mock/MockOracle.sol";
 
 contract MockCollateralSource is ICollateralSource {
     mapping(address => mapping(address => uint256)) public collateral;
@@ -53,7 +40,7 @@ contract CredditRiskEngineTest is Test {
     CredditAssetRegistry public registry;
     CredditAssetRegistry public registryImpl;
 
-    MockPriceOracle public oracle;
+    MockOracle public oracle;
     MockCollateralSource public source;
 
     address public admin = address(0x111);
@@ -96,7 +83,7 @@ contract CredditRiskEngineTest is Test {
         registry = CredditAssetRegistry(address(regProxy));
 
         // 2. Deploy Mocks
-        oracle = new MockPriceOracle();
+        oracle = new MockOracle();
         source = new MockCollateralSource();
 
         // 3. Deploy RiskEngine via deployCode

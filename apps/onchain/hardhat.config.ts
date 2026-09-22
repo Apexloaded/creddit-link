@@ -1,8 +1,9 @@
-import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
 import { configVariable, defineConfig } from "hardhat/config";
+import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
+import hardhatVerify from "@nomicfoundation/hardhat-verify";
 
 export default defineConfig({
-  plugins: [hardhatToolboxMochaEthersPlugin],
+  plugins: [hardhatToolboxMochaEthersPlugin, hardhatVerify],
   solidity: {
     profiles: {
       default: {
@@ -24,6 +25,7 @@ export default defineConfig({
         },
       },
     },
+    npmFilesToBuild: ["@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol"],
   },
   networks: {
     hardhatMainnet: {
@@ -34,11 +36,19 @@ export default defineConfig({
       type: "edr-simulated",
       chainType: "op",
     },
-    sepolia: {
+    robinhood: {
       type: "http",
       chainType: "l1",
-      url: configVariable("SEPOLIA_RPC_URL"),
-      accounts: [configVariable("SEPOLIA_PRIVATE_KEY")],
+      url: configVariable("RH_RPC_URL"),
+      chainId: 4663,
+      accounts: [configVariable("RH_PRIVATE_KEY")],
+    },
+    robinhoodTestnet: {
+      type: "http",
+      chainType: "l1",
+      url: configVariable("RH_TESTNET_RPC_URL"),
+      chainId: 46630,
+      accounts: [configVariable("RH_TESTNET_PRIVATE_KEY")],
     },
   },
 });
