@@ -4,6 +4,8 @@ pragma solidity ^0.8.27;
 import {ILendingAdapter} from "../interfaces/ILendingAdapter.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+/// @notice Test-only mock implementation of ILendingAdapter
+/// @dev Used for testing purposes only. Do not use in production.
 contract MockLendingAdapter is ILendingAdapter {
     address public immutable override loanToken;
     string private mockName = "Mock Lending Adapter";
