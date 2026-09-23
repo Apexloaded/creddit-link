@@ -4,6 +4,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ReduxProvider } from "@/providers/redux-provider";
 import ReactQueryProvider from "@/providers/react-query.provider";
+import { AppProvider } from "@/context/app.context";
 
 const fraunces = Fraunces({
   variable: "--font-fraunces",
@@ -44,9 +45,11 @@ export default function RootLayout({
     )}>
       <body>
         <ReduxProvider>
-          <ReactQueryProvider>
-            {children}
-          </ReactQueryProvider>
+          <AppProvider>
+            <ReactQueryProvider>
+              {children}
+            </ReactQueryProvider>
+          </AppProvider>
         </ReduxProvider>
       </body>
     </html>

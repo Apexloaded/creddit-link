@@ -1,5 +1,13 @@
+import Hero from "@/components/home/hero";
+import { Navigation } from "@/components/navigation";
+import { Footer } from "@/components/navigation/footer";
+
 export default function Home() {
   return (
-    <div>Creddit Link</div>
+    <main>
+      <Navigation />
+      <Hero />
+      <Footer />
+    </main>
   );
 }
