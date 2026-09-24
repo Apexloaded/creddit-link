@@ -2,9 +2,9 @@
 
 import { useRef, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowRightIcon } from "lucide-react";
 import CredditSimulator from "./creddit-simulator";
+import AssetTicker from "./asset-ticker";
 
 const stockSupported = [
   {
@@ -77,12 +77,12 @@ function HomeHero() {
   }, []);
 
   return (
-    <header className="relative flex flex-col min-h-dvh h-auto pt-32 px-5">
+    <header className="relative flex flex-col min-h-dvh h-auto pt-32 ">
       <div
         className="absolute inset-0 border-b border-line bg-secondary pointer-events-none"
         style={{ top: 0, height: "118vh" }}
-      ></div>
-      <div className="relative z-10 max-w-200 mx-auto">
+      />
+      <div className="relative px-5 z-10 max-w-200 mx-auto">
         <h1
           className="font-heading text-center text-[clamp(2.6rem,5.5vw,4.2rem)] font-normal leading-[0.98] tracking-[-0.022em] opacity-0"
           style={{
@@ -96,7 +96,7 @@ function HomeHero() {
         </h1>
 
         <p
-          className="mt-8 max-w-140 text-center mx-auto text-[1.18rem] leading-[1.55] text-ink/68 font-normal opacity-0"
+          className="mt-8 max-w-140 text-center mx-auto text-[1.18rem] leading-[1.55] text-foreground/68 font-normal opacity-0"
           style={{ animation: "rise 0.9s ease forwards 0.6s" }}
         >
           <span className="font-medium">Creddit Link</span> lets you borrow{" "}
@@ -120,33 +120,13 @@ function HomeHero() {
         </div>
       </div>
       <div
-        className="max-w-230 w-full relative z-10 mb-14 mt-20 mx-auto opacity-0"
+        className="max-w-230 px-5 w-full relative z-10 mb-14 mt-20 mx-auto opacity-0"
         style={{ animation: "rise 0.9s ease forwards 0.95s" }}
       >
         <CredditSimulator />
       </div>
-      <p className="font-medium text-primary text-center font-mono tracking-[0.04em] whitespace-nowrap">
-        STOCKS WE SUPPORT AS COLLATERAL
-      </p>
-      {stockSupported.map((group, groupIdx) => (
-        <div
-          key={groupIdx}
-          className={
-            groupIdx === 0
-              ? "z-10 sticky overflow-x-auto bottom-0 backdrop-blur-sm py-4 px-8 bg-inherit flex gap-11 items-center justify-center"
-              : "flex gap-11 overflow-x-auto pb-6 items-center justify-center"
-          }
-        >
-          {group.items.map((item, itemIdx) => (
-            <div key={itemIdx} className="relative flex gap-2 items-center font-mono tracking-[0.04em] opacity-50 hover:opacity-100 whitespace-nowrap">
-              {item.icon && <Image src={item.icon} alt="icon" width={24} height={24} />}
-              <p className="font-medium">{item.id}</p>
-              <p>${item.price}</p>
-              <p className="text-[12px] text-ring">LTV {item.ltv}%</p>
-            </div>
-          ))}
-        </div>
-      ))}
+      {/* Stock Supported */}
+      <AssetTicker items={stockSupported.flatMap((group) => group.items)} />
     </header>
   );
 }

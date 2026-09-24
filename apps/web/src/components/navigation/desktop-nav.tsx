@@ -22,7 +22,7 @@ type DesktopNavProps = {
 
 function DesktopNav({ navItems }: Readonly<DesktopNavProps>) {
   return (
-    <div className="max-w-7xl mx-auto px-5 py-4.5 hidden lg:flex items-center justify-between">
+    <div className="wrap mx-auto px-5 py-4.5 hidden lg:flex items-center justify-between">
       <Link href="/">CredditLink</Link>
 
       <NavigationMenu className="hidden lg:flex">

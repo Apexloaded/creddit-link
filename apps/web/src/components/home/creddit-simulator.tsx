@@ -89,16 +89,16 @@ export default function CredditSimulator() {
       <div className="flex items-center justify-between border-b border-line px-6 py-4">
         <div>
           <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-ink/60">
+            <p className="text-sm font-medium text-foreground/60">
               Your Potential Credit
             </p>
 
-            <span className="rounded-full border border-line px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-ink/40">
+            <span className="rounded-full border border-line px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-foreground/40">
               Simulation
             </span>
           </div>
 
-          <p className="mt-1 text-xs text-ink/40">
+          <p className="mt-1 text-xs text-foreground/40">
             See how your collateral could translate into credit.
           </p>
         </div>
@@ -106,7 +106,7 @@ export default function CredditSimulator() {
         <div className="flex items-center gap-2 rounded-full border border-line px-3 py-1.5">
           <span className={`size-1.5 rounded-full ${healthDot}`} />
 
-          <span className="text-xs font-medium text-ink/60">
+          <span className="text-xs font-medium text-foreground/60">
             {health}
           </span>
         </div>
@@ -116,7 +116,7 @@ export default function CredditSimulator() {
       <div className="px-6 py-8 md:px-10 md:py-10">
         <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm text-ink/50">
+            <p className="text-sm text-foreground/50">
               Potential credit
             </p>
 
@@ -130,12 +130,12 @@ export default function CredditSimulator() {
                 </span>
               </span>
 
-              <span className="text-sm text-ink/40">
+              <span className="text-sm text-foreground/40">
                 USDG
               </span>
             </div>
 
-            <p className="mt-3 max-w-md text-sm leading-6 text-ink/50">
+            <p className="mt-3 max-w-md text-sm leading-6 text-foreground/50">
               Estimated borrowing capacity based on your selected
               collateral and current protocol parameters.
             </p>
@@ -153,11 +153,11 @@ export default function CredditSimulator() {
         {/* Collateral selection */}
         <div className="mt-10">
           <div className="mb-4 flex items-center justify-between">
-            <p className="text-xs font-medium uppercase tracking-[0.08em] text-ink/40">
+            <p className="text-xs font-medium uppercase tracking-[0.08em] text-foreground/40">
               Select collateral
             </p>
 
-            <p className="text-xs text-ink/40">
+            <p className="text-xs text-foreground/40">
               {formatUSD(collateralValue)} selected
             </p>
           </div>
@@ -183,7 +183,7 @@ export default function CredditSimulator() {
                       {asset.symbol}
                     </p>
 
-                    <p className="mt-1 text-xs text-ink/40">
+                    <p className="mt-1 text-xs text-foreground/40">
                       {formatUSD(asset.value)}
                     </p>
                   </div>
@@ -207,7 +207,7 @@ export default function CredditSimulator() {
         {/* Borrow simulation */}
         <div className="mt-10">
           <div className="mb-3 flex items-center justify-between text-xs">
-            <span className="text-ink/50">
+            <span className="text-foreground/50">
               Simulate borrowing
             </span>
 
@@ -229,7 +229,7 @@ export default function CredditSimulator() {
             className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-secondary accent-foreground disabled:cursor-not-allowed disabled:opacity-40"
           />
 
-          <div className="mt-3 flex justify-between text-xs text-ink/40">
+          <div className="mt-3 flex justify-between text-xs text-foreground/40">
             <span>{formatUSD(borrowAmount)} borrowed</span>
             <span>{formatUSD(potentialCredit)} max</span>
           </div>
@@ -238,7 +238,7 @@ export default function CredditSimulator() {
         {/* Utilisation */}
         <div className="mt-8">
           <div className="mb-3 flex items-center justify-between text-xs">
-            <span className="text-ink/50">
+            <span className="text-foreground/50">
               Credit utilisation
             </span>
 
@@ -262,7 +262,7 @@ export default function CredditSimulator() {
       <div className="border-t border-line bg-secondary/40">
         <div className="grid grid-cols-2 divide-x divide-line md:grid-cols-4">
           <div className="px-5 py-5">
-            <p className="text-xs text-ink/40">
+            <p className="text-xs text-foreground/40">
               Collateral
             </p>
 
@@ -272,7 +272,7 @@ export default function CredditSimulator() {
           </div>
 
           <div className="px-5 py-5">
-            <p className="text-xs text-ink/40">
+            <p className="text-xs text-foreground/40">
               Potential credit
             </p>
 
@@ -282,7 +282,7 @@ export default function CredditSimulator() {
           </div>
 
           <div className="px-5 py-5">
-            <p className="text-xs text-ink/40">
+            <p className="text-xs text-foreground/40">
               Simulated debt
             </p>
 
@@ -292,7 +292,7 @@ export default function CredditSimulator() {
           </div>
 
           <div className="px-5 py-5">
-            <p className="text-xs text-ink/40">
+            <p className="text-xs text-foreground/40">
               Remaining credit
             </p>
 
