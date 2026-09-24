@@ -1,9 +1,15 @@
 export const routes = {
   auth: {
-    login: "/auth/login",
-    register: "/auth/create-account",
+    login: "/login",
   },
-  dashboard: {
-    home: "/dashboard",
-  }
+  app: {
+    dashboard: "/",
+    deposit: "/deposit",
+  },
 } as const;
+
+const modalRoutes: string[] = [routes.app.deposit];
+
+export const isModalRoutes = (path: string) => {
+  return modalRoutes.includes(path);
+};

@@ -6,8 +6,9 @@ import { ReduxProvider } from "@/providers/redux-provider";
 import { AppProvider } from "@/context/app.context";
 import ReactQueryProvider from "@/providers/react-query.provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { WagmiProvider } from "@/providers/wagmi.provider";
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,21 +28,28 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
+      suppressHydrationWarning={true}
       lang="en"
-      className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", inter.variable)}
+      className={cn(
+        "h-full",
+        "antialiased",
+        geistSans.variable,
+        geistMono.variable,
+        "font-sans",
+        inter.variable,
+      )}
     >
       <body className="min-h-full flex flex-col">
         <ReduxProvider>
-          <AppProvider>
-            <ReactQueryProvider>
-              <TooltipProvider>
-                {children}
-              </TooltipProvider>
-            </ReactQueryProvider>
-          </AppProvider>
+          <WagmiProvider>
+            <AppProvider>
+              <ReactQueryProvider>
+                <TooltipProvider>{children}</TooltipProvider>
+              </ReactQueryProvider>
+            </AppProvider>
+          </WagmiProvider>
         </ReduxProvider>
       </body>
-
     </html>
   );
 }

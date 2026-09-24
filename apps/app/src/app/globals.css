@@ -18,6 +18,7 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-line: var(--line);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -49,24 +50,24 @@
 }
 
 :root {
-  --background: oklch(97.28% 0.00529 95.188);
+  --background: oklch(100% 0.00011 271.152);
   --foreground: oklch(15.631% 0.0039 164.721);
   --card: oklch(97.28% 0.00529 95.188);
   --card-foreground: oklch(15.631% 0.0039 164.721);
-  --popover: oklch(97.28% 0.00529 95.188);
+  --popover: oklch(94.571% 0.00946 93.606);
   --popover-foreground: oklch(15.631% 0.0039 164.721);
   --primary: oklch(74.928% 0.07661 77.529);
   --primary-foreground: oklch(20% 0.04 77.529);
   --secondary: oklch(94.571% 0.00946 93.606);
   --secondary-foreground: oklch(15.631% 0.0039 164.721);
-  --muted: oklch(0.97 0 0);
+  --muted: oklch(94.571% 0.00946 93.606);
   --muted-foreground: oklch(65.45% 0.01661 136.298);
-  --accent: oklch(0.97 0 0);
+  --accent: oklch(94.571% 0.00946 93.606);
   --accent-foreground: oklch(15.631% 0.0039 164.721);
   --destructive: oklch(0.577 0.245 27.325);
   --success: oklch(47.914% 0.10368 162.94);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: rgba(11, 13, 12, 0.12);
+  --input: oklch(94.571% 0.00946 93.606);
   --ring: oklch(0.708 0 0);
   --line: rgba(11, 13, 12, 0.12);
   --chart-1: oklch(0.87 0 0);
@@ -75,12 +76,12 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
+  --sidebar: oklch(94.571% 0.00946 93.606);
   --sidebar-foreground: oklch(15.631% 0.0039 164.721);
   --sidebar-primary: oklch(15.631% 0.0039 164.721);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(15.631% 0.0039 164.721);
+  --sidebar-accent: oklch(74.928% 0.07661 77.529);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 }
@@ -130,5 +131,18 @@
   }
   html {
     @apply font-sans;
+  }
+  a {
+    text-decoration: none !important;
+  }
+
+  ::selection {
+    background: var(--primary);
+    color: var(--foreground);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 3px;
   }
 }

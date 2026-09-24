@@ -1,9 +1,43 @@
+
+const required = (name: string) => {
+  if (!process.env[name]) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return process.env[name]!;
+};
+
+const keys = {
+  app: {
+    name: "APP_NAME",
+    hostname: "HOSTNAME",
+    defaultChain: "DEFAULT_CHAIN",
+    blurHash: "DEFAULT_NEUTRAL_BLURHASH",
+  },
+  walletConnect: {
+    projectId: "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID",
+  }
+}
+
+const envDefaults = {
+  app: {
+    name: "Creddit Link",
+    hostname: undefined,
+    defaultChain: 46630,
+  },
+  walletConnect: {
+    projectId: "6a034e0c62ffce25a8871e9f767b4a57"
+  }
+}
+
 export const envConfig = {
   app: {
-    name: process.env.APP_NAME || "Creddit Link",
-    hostname: process.env.HOSTNAME || undefined,
-    defaultChain: Number(process.env.DEFAULT_CHAIN || 46630),
-    blurHash: process.env.NEXT_PUBLIC_DEFAULT_NEUTRAL_BLURHASH!
+    name: process.env[keys.app.name] || envDefaults.app.name,
+    hostname: process.env[keys.app.hostname] || envDefaults.app.hostname,
+    defaultChain: Number(process.env[keys.app.defaultChain] || envDefaults.app.defaultChain),
+    blurHash: process.env[keys.app.blurHash]!
+  },
+  walletConnect: {
+    id: process.env[keys.walletConnect.projectId]
   }
 };
 
