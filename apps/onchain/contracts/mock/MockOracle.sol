@@ -17,4 +17,15 @@ contract MockOracle is IPriceOracle {
     ) external view override returns (uint256) {
         return pricesWad[asset];
     }
+
+    function getUsdPriceSafe(
+        address asset
+    )
+        external
+        view
+        override
+        returns (uint256 priceWad, bool isStale, bool isValid)
+    {
+        return (pricesWad[asset], false, true);
+    }
 }

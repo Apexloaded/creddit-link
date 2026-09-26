@@ -138,10 +138,60 @@ contract CredditOracle is CredditCore, IPriceOracle {
         return feeds[asset];
     }
 
-    /// @inheritdoc IPriceOracle
+    /// @notice Strict pricing function used by state-changing functions (Credit Line, Liquidations)
+    /// @dev Reverts on stale prices, incomplete rounds, or non-positive values.
+    /// @param asset The address of the asset.
+    /// @return priceWad The WAD-normalized USD price of the asset.
     function getUsdPrice(
         address asset
     ) external view override returns (uint256 priceWad) {
+        (
+            uint256 price,
+            bool isStale,
+            bool isValid,
+            uint256 updatedAt
+        ) = _getPriceInternal(asset);
+
+        if (!isValid) revert IncompleteRound(asset);
+
+        if (isStale) {
+            FeedConfig memory cfg = feeds[asset];
+            revert StalePrice(asset, updatedAt, cfg.stalenessThreshold);
+        }
+
+        return price;
+    }
+
+    /// @notice Flexible pricing function for UI / external read-only calls
+    /// @dev This function does not revert on stale prices. It returns the last known price and a flag indicating whether it is stale.
+    /// @param asset The address of the asset.
+    /// @return priceWad The price normalized to WAD
+    /// @return isStale True if the price exceeds the staleness threshold
+    function getUsdPriceSafe(
+        address asset
+    ) external view returns (uint256 priceWad, bool isStale, bool isValid) {
+        (priceWad, isStale, isValid, ) = _getPriceInternal(asset);
+        // If the round is incomplete or invalid, treat it as stale/unusable for the UI
+        if (!isValid) {
+            return (0, true, isValid);
+        }
+    }
+
+    /*********************************************************************
+     * INTERNAL FUNCTIONS
+     *********************************************************************/
+    function _getPriceInternal(
+        address asset
+    )
+        internal
+        view
+        returns (
+            uint256 priceWad,
+            bool isStale,
+            bool isValid,
+            uint256 updatedAt
+        )
+    {
         FeedConfig memory cfg = feeds[asset];
         if (cfg.feed == address(0)) revert FeedNotConfigured();
         if (!cfg.enabled) revert FeedDisabled(asset);
@@ -151,29 +201,19 @@ contract CredditOracle is CredditCore, IPriceOracle {
             uint80 roundId,
             int256 answer,
             ,
-            uint256 updatedAt,
+            uint256 feedUpdatedAt,
             uint80 answeredInRound
         ) = feed.latestRoundData();
 
-        // Round completeness: answeredInRound must not precede roundId, and
-        // updatedAt must be nonzero (a zero timestamp indicates an incomplete round).
-        if (answeredInRound < roundId || updatedAt == 0)
-            revert IncompleteRound(asset);
+        updatedAt = feedUpdatedAt;
 
-        // Staleness.
-        if (block.timestamp - updatedAt > cfg.stalenessThreshold) {
-            revert StalePrice(asset, updatedAt, cfg.stalenessThreshold);
+        // Soft check: If round is incomplete or price is invalid, mark isValid = false without reverting
+        if (answeredInRound < roundId || updatedAt == 0 || answer <= 0) {
+            return (0, true, false, updatedAt);
         }
 
-        // Reject non-positive prices explicitly (covers zero and negative).
-        if (answer <= 0) revert InvalidPrice(asset, answer);
-
-        uint8 feedDecimals = feed.decimals();
-        // NOTE ON STOCK TOKEN MULTIPLIERS: the Chainlink feed for a
-        // Robinhood Stock Token is expected to already reflect any corporate-action
-        // multiplier applied to that token. This function performs ONLY a decimal
-        // normalization to WAD — it must never apply an additional UI-level
-        // multiplier on top of `answer`, or collateral would be double-counted.
-        priceWad = uint256(answer).toWad(feedDecimals);
+        isStale = block.timestamp - updatedAt > cfg.stalenessThreshold;
+        isValid = true;
+        priceWad = uint256(answer).toWad(feed.decimals());
     }
 }

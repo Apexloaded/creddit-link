@@ -1,11 +1,12 @@
-"use client"
+"use client";
 
-import { useConnect, useConnection, useConnectors } from 'wagmi'
-import { ConnectorItem } from './connector-item'
-import { Container } from '../ui/container'
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { routes } from '@/lib/route';
+import { useConnect, useConnection, useConnectors } from "wagmi";
+import { ConnectorItem } from "./connector-item";
+import { Container } from "../ui/container";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { routes } from "@/lib/route";
+import { hardhat } from "wagmi/chains";
 
 export function ListConnectors() {
   const router = useRouter();
@@ -15,20 +16,23 @@ export function ListConnectors() {
 
   useEffect(() => {
     if (isConnected) {
-      router.push(routes.app.dashboard)
+      router.push(routes.app.dashboard);
     }
-  }, [isConnected])
+  }, [isConnected]);
 
   return (
-    <Container className='border border-primary/50 rounded-lg bg-white overflow-hidden shadow-md'>
+    <Container className="border border-primary/50 rounded-lg bg-white overflow-hidden shadow-md">
       {connectors.map((connector, index) => (
-        <ConnectorItem key={`${connector.uid}-${index}`} connector={{
-          id: connector.uid,
-          name: connector.name,
-          icon: connector.icon,
-          onClick: () => connect({ connector }),
-        }} />
+        <ConnectorItem
+          key={`${connector.uid}-${index}`}
+          connector={{
+            id: connector.uid,
+            name: connector.name,
+            icon: connector.icon,
+            onClick: () => connect({ connector, chainId: hardhat.id }),
+          }}
+        />
       ))}
     </Container>
-  )
+  );
 }

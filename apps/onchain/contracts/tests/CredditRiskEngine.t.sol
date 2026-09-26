@@ -298,7 +298,11 @@ contract CredditRiskEngineTest is Test {
         oracle.setPrice(mockTokenA, 2000e18);
         source.setCollateral(alice, mockTokenA, 2e18);
 
-        uint256 value = riskEngine.riskAdjustedValue(address(source), alice);
+        (uint256 value, , ) = riskEngine.riskAdjustedValue(
+            address(source),
+            alice,
+            false
+        );
         assertEq(value, 2800e18);
     }
 
@@ -311,7 +315,11 @@ contract CredditRiskEngineTest is Test {
         oracle.setPrice(mockTokenB, 1e18);
         source.setCollateral(alice, mockTokenB, 1000e6);
 
-        uint256 value = riskEngine.riskAdjustedValue(address(source), alice);
+        (uint256 value, , ) = riskEngine.riskAdjustedValue(
+            address(source),
+            alice,
+            false
+        );
         assertEq(value, 800e18);
     }
 

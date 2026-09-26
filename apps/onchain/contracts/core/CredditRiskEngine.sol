@@ -120,6 +120,8 @@ contract CredditRiskEngine is CredditCore {
      *********************************************************************/
 
     /// @notice Calculates the credit limit for a specific user and collateral source.
+    /// @dev The strict version that checks for oracle price staleness and validity.
+    /// @dev Use this function in your smart contracts strictly. Do not use creditLimitSafe().
     /// @param source The collateral source contract.
     /// @param user The address of the user.
     /// @return The credit limit for the user.
@@ -127,64 +129,54 @@ contract CredditRiskEngine is CredditCore {
         address source,
         address user
     ) public view returns (uint256) {
-        return
-            CreditRiskMath.creditLimit(
-                riskAdjustedValue(source, user),
-                creditUtilizationCapWad
-            );
+        uint256 total;
+        (total, , ) = riskAdjustedValue(source, user, false);
+        return CreditRiskMath.creditLimit(total, creditUtilizationCapWad);
+    }
+
+    /// @notice Calculates the credit limit for a specific user and collateral source.
+    /// @dev The safe version does not revert for oracle price staleness and validity.
+    /// @dev Use this function to query credit limit in dapps only.
+    /// @dev Do not use this function to calculate credit limit in your smart contracts; use creditLimit() instead.
+    /// @param source The collateral source contract.
+    /// @param user The address of the user.
+    /// @return limit The credit limit for the user.
+    /// @return isStale Whether the price is stale.
+    /// @return isValid Whether the price is valid.
+    function creditLimitSafe(
+        address source,
+        address user
+    ) external view returns (uint256 limit, bool isStale, bool isValid) {
+        uint256 total;
+        (total, isStale, isValid) = riskAdjustedValue(source, user, true);
+        limit = CreditRiskMath.creditLimit(total, creditUtilizationCapWad);
     }
 
     /// @notice Calculates the total risk-adjusted value of collateral for a specific user.
     /// @param source The collateral source contract.
     /// @param user The address of the user.
+    /// @param shouldUseSafe Whether to use the safe price that does not revert.
     /// @return total The total risk-adjusted value of the collateral.
+    /// @return isStale Whether the price is stale.
+    /// @return isValid Whether the price is valid.
     function riskAdjustedValue(
         address source,
-        address user
-    ) public view returns (uint256 total) {
+        address user,
+        bool shouldUseSafe
+    ) public view returns (uint256 total, bool isStale, bool isValid) {
         CredditAssetRegistry.AssetConfig[] memory configs = registry.listAssets(
             true
         );
-        for (uint256 i; i < configs.length; ++i) {
-            CredditAssetRegistry.AssetConfig memory cfg = configs[i];
-            uint256 collateral = ICollateralSource(source).collateralOf(
-                user,
-                cfg.token
-            );
-            uint256 value = _assetValue(collateral, cfg.token, cfg);
-            total += CreditRiskMath.riskAdjustedValue(
-                value,
-                uint256(cfg.collateralFactorBps).bpsToWad()
-            );
-        }
-    }
-
-    /// @notice Calculates the liquidation value of a collateral source for a specific user.
-    /// @param source The collateral source contract.
-    /// @param user The address of the user.
-    /// @return total The liquidation value of the collateral source for the user.
-    function liquidationValue(
-        address source,
-        address user
-    ) public view returns (uint256 total) {
-        CredditAssetRegistry.AssetConfig[] memory configs = registry.listAssets(
-            false
+        (total, isStale, isValid) = _sumAssetValue(
+            source,
+            user,
+            configs,
+            shouldUseSafe
         );
-        for (uint256 i; i < configs.length; ++i) {
-            CredditAssetRegistry.AssetConfig memory cfg = configs[i];
-            uint256 collateral = ICollateralSource(source).collateralOf(
-                user,
-                cfg.token
-            );
-            uint256 value = _assetValue(collateral, cfg.token, cfg);
-            total += CreditRiskMath.riskAdjustedValue(
-                value,
-                uint256(cfg.collateralFactorBps).bpsToWad()
-            );
-        }
     }
 
     /// @notice Checks if a user is liquidatable.
+    /// @dev Use this function to check if a user is liquidatable in your smart contracts strictly.
     /// @param source The collateral source contract.
     /// @param user The address of the user.
     /// @param debt The amount of debt.
@@ -195,27 +187,110 @@ contract CredditRiskEngine is CredditCore {
         uint256 debt
     ) external view returns (bool) {
         if (debt == 0) return false;
-        return
-            CreditRiskMath.isLiquidatable(liquidationValue(source, user), debt);
+        (uint256 value, , ) = liquidationValue(source, user, false);
+        return CreditRiskMath.isLiquidatable(value, debt);
+    }
+
+    /// @notice Checks if a user is liquidatable.
+    /// @dev The safe version does not revert for oracle price staleness and validity.
+    /// @dev Use this function to check if a user is liquidatable in dapps only.
+    /// @dev Do not use this function to check if a user is liquidatable in your smart contracts; use isLiquidatable() instead.
+    /// @param source The collateral source contract.
+    /// @param user The address of the user.
+    /// @param debt The amount of debt.
+    /// @return liquidatable Whether the user is liquidatable.
+    function isLiquidatableSafe(
+        address source,
+        address user,
+        uint256 debt
+    ) external view returns (bool) {
+        if (debt == 0) return false;
+        (uint256 value, , ) = liquidationValue(source, user, true);
+        return CreditRiskMath.isLiquidatable(value, debt);
+    }
+
+    /// @notice Calculates the liquidation value of a collateral source for a specific user.
+    /// @param source The collateral source contract.
+    /// @param user The address of the user.
+    /// @param shouldUseSafe Whether to use the safe price that does not revert.
+    /// @return total The liquidation value of the collateral source for the user.
+    /// @return isStale Whether the price is stale.
+    /// @return isValid Whether the price is valid.
+    function liquidationValue(
+        address source,
+        address user,
+        bool shouldUseSafe
+    ) public view returns (uint256 total, bool isStale, bool isValid) {
+        CredditAssetRegistry.AssetConfig[] memory configs = registry.listAssets(
+            false
+        );
+        (total, isStale, isValid) = _sumAssetValue(
+            source,
+            user,
+            configs,
+            shouldUseSafe
+        );
     }
 
     /*********************************************************************
      * INTERNAL FUNCTIONS
      *********************************************************************/
+    /// @notice Sums the value of the assets for a specific user.
+    /// @param source The collateral source contract.
+    /// @param user The address of the user.
+    /// @param configs The asset configurations.
+    /// @return total The total value of the assets.
+    function _sumAssetValue(
+        address source,
+        address user,
+        CredditAssetRegistry.AssetConfig[] memory configs,
+        bool shouldUseSafe
+    ) internal view returns (uint256 total, bool isStale, bool isValid) {
+        for (uint256 i; i < configs.length; ++i) {
+            CredditAssetRegistry.AssetConfig memory cfg = configs[i];
+            uint256 collateral = ICollateralSource(source).collateralOf(
+                user,
+                cfg.token
+            );
+            uint256 value;
+            (value, isStale, isValid) = _assetValue(
+                collateral,
+                cfg.token,
+                cfg,
+                shouldUseSafe
+            );
+            total += CreditRiskMath.riskAdjustedValue(
+                value,
+                uint256(cfg.collateralFactorBps).bpsToWad()
+            );
+        }
+    }
 
     /// @dev Calculates the risk-adjusted value of collateral for a specific asset.
     /// @param collateral The amount of collateral held.
     /// @param asset The asset token address
     /// @param assetCfg The asset configuration.
-    /// @return The risk-adjusted value of the collateral.
+    /// @param shouldUseSafe Whether to use the safe price that does not revert.
+    /// @return value The risk-adjusted value of the collateral.
+    /// @return isStale Whether the price is stale.
+    /// @return isValid Whether the price is valid.
     function _assetValue(
         uint256 collateral,
         address asset,
-        CredditAssetRegistry.AssetConfig memory assetCfg
-    ) internal view returns (uint256) {
-        if (collateral == 0) return 0;
-        uint256 priceWad = oracle.getUsdPrice(asset);
+        CredditAssetRegistry.AssetConfig memory assetCfg,
+        bool shouldUseSafe
+    ) internal view returns (uint256 value, bool isStale, bool isValid) {
+        if (collateral == 0) return (0, false, false);
+        uint256 priceWad;
+        if (shouldUseSafe) {
+            (priceWad, isStale, isValid) = oracle.getUsdPriceSafe(asset);
+        } else {
+            priceWad = oracle.getUsdPrice(asset);
+            isStale = false;
+            isValid = true;
+        }
+
         uint256 collateralWad = collateral.toWad(assetCfg.decimals);
-        return collateralWad.wadMulDown(priceWad);
+        value = collateralWad.wadMulDown(priceWad);
     }
 }

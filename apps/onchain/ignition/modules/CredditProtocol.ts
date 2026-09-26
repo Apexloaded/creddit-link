@@ -4,27 +4,106 @@ import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 // MockV3Aggregator price feed (8 decimals, Chainlink USD-feed convention).
 // initialPriceUsd8 is the starting price scaled to 1e8 (e.g. $189.50 -> 18950000000).
 const STOCKS = [
-  { symbol: "AAPL", name: "Robinhood AAPL", initialPriceUsd8: "18950000000" },
-  { symbol: "AMZN", name: "Robinhood AMZN", initialPriceUsd8: "18600000000" },
-  { symbol: "TSLA", name: "Robinhood TSLA", initialPriceUsd8: "24500000000" },
-  { symbol: "SPCX", name: "Robinhood SPCX", initialPriceUsd8: "5000000000" },
-  { symbol: "NVDA", name: "Robinhood NVDA", initialPriceUsd8: "13500000000" },
-  { symbol: "NFLX", name: "Robinhood NFLX", initialPriceUsd8: "70000000000" },
-  { symbol: "GOOGL", name: "Robinhood GOOGL", initialPriceUsd8: "17500000000" },
-  { symbol: "IBM", name: "Robinhood IBM", initialPriceUsd8: "22000000000" },
+  {
+    symbol: "AAPL",
+    decimals: 18,
+    collateralFactorBps: 7500, // 75.0% LTV
+    liquidationThresholdBps: 8000, // 80.0% Threshold
+    liquidationPenaltyBps: 500, // 5.0% Penalty (<= 15%)
+    liquidationBonusBps: 400, // 4.0% Bonus (<= Penalty)
+    maxExposure: "10000000000000000000000000", // 10,000,000 shares
+    name: "Robinhood AAPL",
+    initialPriceUsd8: "18950000000",
+    initialSupply: "10000000000000000000000000", // 10,000,000 shares
+  },
+  {
+    symbol: "AMZN",
+    decimals: 18,
+    collateralFactorBps: 7000, // 70.0% LTV
+    liquidationThresholdBps: 7500, // 75.0% Threshold
+    liquidationPenaltyBps: 700, // 7.0% Penalty
+    liquidationBonusBps: 500, // 5.0% Bonus
+    maxExposure: "10000000000000000000000000", // 10,000,000 shares
+    name: "Robinhood AMZN",
+    initialPriceUsd8: "18600000000",
+    initialSupply: "10000000000000000000000000", // 10,000,000 shares
+  },
+  {
+    symbol: "TSLA",
+    decimals: 18,
+    collateralFactorBps: 5500, // 55.0% LTV (Higher Volatility)
+    liquidationThresholdBps: 6200, // 62.0% Threshold
+    liquidationPenaltyBps: 1200, // 12.0% Penalty
+    liquidationBonusBps: 1000, // 10.0% Bonus
+    maxExposure: "5000000000000000000000000", // 5,000,000 shares
+    name: "Robinhood TSLA",
+    initialPriceUsd8: "24500000000",
+    initialSupply: "10000000000000000000000000", // 10,000,000 shares
+  },
+  {
+    symbol: "SPCX",
+    decimals: 18,
+    collateralFactorBps: 5000, // 50.0% LTV (Higher Volatility / Niche)
+    liquidationThresholdBps: 5800, // 58.0% Threshold
+    liquidationPenaltyBps: 1400, // 14.0% Penalty
+    liquidationBonusBps: 1200, // 12.0% Bonus
+    maxExposure: "5000000000000000000000000", // 5,000,000 shares
+    name: "Robinhood SPCX",
+    initialPriceUsd8: "5000000000",
+    initialSupply: "10000000000000000000000000", // 10,000,000 shares
+  },
+  {
+    symbol: "NVDA",
+    decimals: 18,
+    collateralFactorBps: 6800, // 68.0% LTV
+    liquidationThresholdBps: 7300, // 73.0% Threshold
+    liquidationPenaltyBps: 800, // 8.0% Penalty
+    liquidationBonusBps: 600, // 6.0% Bonus
+    maxExposure: "10000000000000000000000000", // 10,000,000 shares
+    name: "Robinhood NVDA",
+    initialPriceUsd8: "13500000000",
+    initialSupply: "10000000000000000000000000", // 10,000,000 shares
+  },
+  {
+    symbol: "NFLX",
+    decimals: 18,
+    collateralFactorBps: 6500, // 65.0% LTV
+    liquidationThresholdBps: 7000, // 70.0% Threshold
+    liquidationPenaltyBps: 900, // 9.0% Penalty
+    liquidationBonusBps: 700, // 7.0% Bonus
+    maxExposure: "10000000000000000000000000", // 10,000,000 shares
+    name: "Robinhood NFLX",
+    initialPriceUsd8: "70000000000",
+    initialSupply: "10000000000000000000000000", // 10,000,000 shares
+  },
+  {
+    symbol: "GOOGL",
+    decimals: 18,
+    collateralFactorBps: 7500, // 75.0% LTV
+    liquidationThresholdBps: 8000, // 80.0% Threshold
+    liquidationPenaltyBps: 500, // 5.0% Penalty
+    liquidationBonusBps: 400, // 4.0% Bonus
+    maxExposure: "10000000000000000000000000", // 10,000,000 shares
+    name: "Robinhood GOOGL",
+    initialPriceUsd8: "17500000000",
+    initialSupply: "10000000000000000000000000", // 10,000,000 shares
+  },
+  {
+    symbol: "IBM",
+    decimals: 18,
+    collateralFactorBps: 7200, // 72.0% LTV
+    liquidationThresholdBps: 7700, // 77.0% Threshold
+    liquidationPenaltyBps: 600, // 6.0% Penalty
+    liquidationBonusBps: 500, // 5.0% Bonus
+    maxExposure: "10000000000000000000000000", // 10,000,000 shares
+    name: "Robinhood IBM",
+    initialPriceUsd8: "22000000000",
+    initialSupply: "10000000000000000000000000", // 10,000,000 shares
+  },
 ];
 
 const FEED_DECIMALS = 8;
-const TOKEN_DECIMALS = 18;
 const STALENESS_THRESHOLD = 3600; // 1 hour; must be within [1 minutes, 24 hours]
-
-// Placeholder collateral risk params, shared across all 8 tokens here.
-// collateralFactorBps + 500 <= liquidationThresholdBps is enforced on-chain.
-const COLLATERAL_FACTOR_BPS = 6500; // 65%
-const LIQUIDATION_THRESHOLD_BPS = 7000; // 70%
-const LIQUIDATION_PENALTY_BPS = 800; // 8%
-const LIQUIDATION_BONUS_BPS = 500; // 5%
-const MAX_EXPOSURE = "1000000000000000000000000"; // 1,000,000 tokens (18 decimals)
 
 export default buildModule("CredditProtocol", (m) => {
   // ---------------------------------------------------------------------
@@ -37,16 +116,21 @@ export default buildModule("CredditProtocol", (m) => {
   const USDG_DECIMALS = 6; // stablecoin convention, matches USDC/USDT
   const USDG_INITIAL_SUPPLY = m.getParameter(
     "usdgInitialSupply",
-    "100000000000000" // 100,000,000 USDG at 6 decimals
+    "200000000000000", // 200,000,000 USDG at 6 decimals
   );
 
   const usdg = m.contract(
     "MockERC20",
     [USDG_NAME, USDG_SYMBOL, USDG_DECIMALS, admin],
-    { id: "UsdgToken" }
+    { id: "UsdgToken" },
   );
+
   m.call(usdg, "mint", [admin, USDG_INITIAL_SUPPLY], {
     id: "UsdgMintInitialSupply",
+  });
+
+  m.contract("MockV3Aggregator", [FEED_DECIMALS, "100000000"], {
+    id: `UsdgFeed`,
   });
 
   const rateModelParams = m.getParameter("rateModelParams", [
@@ -59,15 +143,15 @@ export default buildModule("CredditProtocol", (m) => {
   const riskParams = {
     creditUtilizationCapWad: m.getParameter(
       "creditUtilizationCapWad",
-      "900000000000000000" // 90%
+      "900000000000000000", // 90%
     ),
     maxCollateralAssetsPerUser: m.getParameter(
       "maxCollateralAssetsPerUser",
-      10
+      10,
     ),
     liquidationCloseFactorWad: m.getParameter(
       "liquidationCloseFactorWad",
-      "500000000000000000" // 50%
+      "500000000000000000", // 50%
     ),
   };
 
@@ -84,13 +168,11 @@ export default buildModule("CredditProtocol", (m) => {
   const rateModelProxy = m.contract(
     "ERC1967Proxy",
     [rateModelImpl, rateModelInitData],
-    { id: "RateModelProxy" }
+    { id: "RateModelProxy" },
   );
-  const rateModel = m.contractAt(
-    "CredditInterestRateModel",
-    rateModelProxy,
-    { id: "RateModel" }
-  );
+  const rateModel = m.contractAt("CredditInterestRateModel", rateModelProxy, {
+    id: "RateModel",
+  });
 
   // ---------------------------------------------------------------------
   // 2. CredditLiquidityPool — depends on rateModel
@@ -137,7 +219,7 @@ export default buildModule("CredditProtocol", (m) => {
   const registryProxy = m.contract(
     "ERC1967Proxy",
     [registryImpl, registryInitData],
-    { id: "RegistryProxy" }
+    { id: "RegistryProxy" },
   );
   const registry = m.contractAt("CredditAssetRegistry", registryProxy, {
     id: "Registry",
@@ -159,12 +241,12 @@ export default buildModule("CredditProtocol", (m) => {
       riskParams.creditUtilizationCapWad,
       riskParams.maxCollateralAssetsPerUser,
       riskParams.liquidationCloseFactorWad,
-    ]
+    ],
   );
   const riskEngineProxy = m.contract(
     "ERC1967Proxy",
     [riskEngineImpl, riskEngineInitData],
-    { id: "RiskEngineProxy" }
+    { id: "RiskEngineProxy" },
   );
   const riskEngine = m.contractAt("CredditRiskEngine", riskEngineProxy, {
     id: "RiskEngine",
@@ -180,11 +262,9 @@ export default buildModule("CredditProtocol", (m) => {
     admin,
     usdg,
   ]);
-  const routerProxy = m.contract(
-    "ERC1967Proxy",
-    [routerImpl, routerInitData],
-    { id: "RouterProxy" }
-  );
+  const routerProxy = m.contract("ERC1967Proxy", [routerImpl, routerInitData], {
+    id: "RouterProxy",
+  });
   const router = m.contractAt("CredditLendingRouter", routerProxy, {
     id: "Router",
   });
@@ -198,12 +278,12 @@ export default buildModule("CredditProtocol", (m) => {
   const creditLineInitData = m.encodeFunctionCall(
     creditLineImpl,
     "initialize",
-    [admin, registry, usdg, riskEngine, oracle, router]
+    [admin, registry, usdg, riskEngine, oracle, router],
   );
   const creditLineProxy = m.contract(
     "ERC1967Proxy",
     [creditLineImpl, creditLineInitData],
-    { id: "CreditLineProxy" }
+    { id: "CreditLineProxy" },
   );
   const creditLine = m.contractAt("CredditCreditLine", creditLineProxy, {
     id: "CreditLine",
@@ -228,14 +308,18 @@ export default buildModule("CredditProtocol", (m) => {
   for (const stock of STOCKS) {
     const token = m.contract(
       "MockERC20",
-      [stock.name, stock.symbol, TOKEN_DECIMALS, admin],
-      { id: `${stock.symbol}Token` }
+      [stock.name, stock.symbol, stock.decimals, admin],
+      { id: `${stock.symbol}Token` },
     );
+
+    m.call(token, "mint", [admin, stock.initialSupply], {
+      id: `${stock.symbol}MintInitialSupply`,
+    });
 
     const feed = m.contract(
       "MockV3Aggregator",
       [FEED_DECIMALS, stock.initialPriceUsd8],
-      { id: `${stock.symbol}Feed` }
+      { id: `${stock.symbol}Feed` },
     );
 
     m.call(oracle, "setFeed", [feed, token, STALENESS_THRESHOLD], {
@@ -247,14 +331,14 @@ export default buildModule("CredditProtocol", (m) => {
       "addAsset",
       [
         token,
-        COLLATERAL_FACTOR_BPS,
-        LIQUIDATION_THRESHOLD_BPS,
-        LIQUIDATION_PENALTY_BPS,
-        LIQUIDATION_BONUS_BPS,
-        MAX_EXPOSURE,
-        TOKEN_DECIMALS,
+        stock.collateralFactorBps,
+        stock.liquidationThresholdBps,
+        stock.liquidationPenaltyBps,
+        stock.liquidationBonusBps,
+        stock.maxExposure,
+        stock.decimals,
       ],
-      { id: `RegistryAddAsset${stock.symbol}` }
+      { id: `RegistryAddAsset${stock.symbol}` },
     );
 
     stockTokens[stock.symbol] = token;
@@ -263,15 +347,25 @@ export default buildModule("CredditProtocol", (m) => {
 
   return {
     rateModel,
+    rateModelProxy,
     pool,
+    poolProxy,
     oracle,
+    oracleProxy,
     registry,
+    registryProxy,
     riskEngine,
+    riskEngineProxy,
     router,
+    routerProxy,
     creditLine,
+    creditLineProxy,
     ...stockTokens,
     ...Object.fromEntries(
-      Object.entries(stockFeeds).map(([symbol, feed]) => [`${symbol}Feed`, feed])
+      Object.entries(stockFeeds).map(([symbol, feed]) => [
+        `${symbol}Feed`,
+        feed,
+      ]),
     ),
   };
 });

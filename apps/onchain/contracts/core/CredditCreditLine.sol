@@ -279,9 +279,10 @@ contract CredditCreditLine is CredditCore {
         _syncDebtIndex();
         uint256 debtWad = _debt(msg.sender);
         if (debtWad != 0) {
-            uint256 liqWeighted = riskEngine.riskAdjustedValue(
+            (uint256 liqWeighted, , ) = riskEngine.riskAdjustedValue(
                 address(this),
-                msg.sender
+                msg.sender,
+                false
             );
             if (CreditRiskMath.isLiquidatable(liqWeighted, debtWad))
                 revert PositionUnsafeAfterWithdrawal();

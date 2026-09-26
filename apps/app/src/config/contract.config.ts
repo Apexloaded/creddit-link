@@ -1,0 +1,20 @@
+import { Address } from "viem";
+
+export const ASSET_REGISTRY_ADDRESS: Address =
+  "0x851356ae760d987E095750cCeb3bC6014560891C";
+
+enum Contracts {
+  REGISTRY = "REGISTRY",
+  ORACLE = "ORACLE",
+  CREDIT_LINE = "CREDIT_LINE",
+  RISK_ENGINE = "RISK_ENGINE",
+}
+
+export const ORACLE_PRICE_DECIMALS = 18;
+
+export const CREDDIT_PROTOCOL_ADDRESSES: Record<Contracts, Address> = {
+  [Contracts.REGISTRY]: "0x851356ae760d987E095750cCeb3bC6014560891C",
+  [Contracts.ORACLE]: "0xa82fF9aFd8f496c3d6ac40E2a0F282E47488CFc9",
+  [Contracts.CREDIT_LINE]: "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+  [Contracts.RISK_ENGINE]: "0x2bdCC0de6bE1f7D2ee689a0342D76F52E8EFABa3",
+};

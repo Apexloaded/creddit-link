@@ -42,11 +42,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <ReduxProvider>
           <WagmiProvider>
-            <AppProvider>
-              <ReactQueryProvider>
-                <TooltipProvider>{children}</TooltipProvider>
-              </ReactQueryProvider>
-            </AppProvider>
+            <ReactQueryProvider>
+              <TooltipProvider>
+                <AppProvider>{children}</AppProvider>
+              </TooltipProvider>
+            </ReactQueryProvider>
           </WagmiProvider>
         </ReduxProvider>
       </body>

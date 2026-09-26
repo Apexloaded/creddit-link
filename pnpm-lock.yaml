@@ -109,6 +109,9 @@ importers:
       '@nomicfoundation/hardhat-ignition':
         specifier: ^3.1.8
         version: 3.1.8(@nomicfoundation/hardhat-verify@3.1.0(hardhat@3.16.0))(hardhat@3.16.0)
+      '@nomicfoundation/hardhat-ignition-ethers':
+        specifier: ^3.1.6
+        version: 3.1.6(@nomicfoundation/hardhat-ethers@4.0.15(hardhat@3.16.0))(@nomicfoundation/hardhat-ignition@3.1.8(@nomicfoundation/hardhat-verify@3.1.0(hardhat@3.16.0))(hardhat@3.16.0))(@nomicfoundation/hardhat-verify@3.1.0(hardhat@3.16.0))(@nomicfoundation/ignition-core@3.1.9)(ethers@6.17.0)(hardhat@3.16.0)
       '@nomicfoundation/hardhat-toolbox-mocha-ethers':
         specifier: ^3.0.7
         version: 3.0.7(bfb9ad2c844ccf78bfcbdeb23980f201)

@@ -1,0 +1,52 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_34-5e67d6e35f59e2e0e5daf6f646dc95a8c6553fb6",
+  "solcVersion": "0.8.34",
+  "solcLongVersion": "0.8.34+commit.80d5c536",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.16.0"
+  },
+  "userSourceNameMap": {
+    "contracts/mock/MockV3Aggregator.sol": "project/contracts/mock/MockV3Aggregator.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "osaka",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/interfaces/AggregatorV3Interface.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.27;\n\n/// @notice Minimal, standard Chainlink AggregatorV3Interface ABI, vendored\n/// locally to avoid a full Chainlink contracts package dependency for a\n/// single interface. Matches the canonical interface exactly.\ninterface AggregatorV3Interface {\n    /// @notice Returns the number of decimals in the price.\n    /// @return The number of decimals.\n    function decimals() external view returns (uint8);\n\n    /// @notice Returns the description of the price feed.\n    /// @return The description of the price feed.\n    function description() external view returns (string memory);\n\n    /// @notice Returns the version of the price feed.\n    /// @return The version of the price feed.\n    function version() external view returns (uint256);\n\n    /// @notice Returns the latest round data for the price feed.\n    /// @return roundId The ID of the round.\n    /// @return answer The price in the feed's currency.\n    /// @return startedAt The timestamp when the round started.\n    /// @return updatedAt The timestamp when the round was updated.\n    /// @return answeredInRound The ID of the round that was answered.\n    function latestRoundData()\n        external\n        view\n        returns (\n            uint80 roundId,\n            int256 answer,\n            uint256 startedAt,\n            uint256 updatedAt,\n            uint80 answeredInRound\n        );\n}\n"
+      },
+      "project/contracts/mock/MockV3Aggregator.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\n\nimport {AggregatorV3Interface} from \"../interfaces/AggregatorV3Interface.sol\";\n\n/// @notice Test-only mock Chainlink aggregator. Lets tests set price, staleness,\n/// and incomplete-round conditions explicitly. Never used in production.\ncontract MockV3Aggregator is AggregatorV3Interface {\n    uint8 private _decimals;\n    int256 private _answer;\n    uint256 private _startedAt;\n    uint256 private _updatedAt;\n    uint80 private _roundId = 1;\n    uint80 private _answeredInRound = 1;\n\n    constructor(uint8 decimals_, int256 initialAnswer) {\n        _decimals = decimals_;\n        _answer = initialAnswer;\n        _startedAt = block.timestamp;\n        _updatedAt = block.timestamp;\n    }\n\n    function decimals() external view override returns (uint8) {\n        return _decimals;\n    }\n\n    function description() external pure override returns (string memory) {\n        return \"MockV3Aggregator\";\n    }\n\n    function version() external pure override returns (uint256) {\n        return 1;\n    }\n\n    function setAnswer(int256 newAnswer) external {\n        _answer = newAnswer;\n        _roundId += 1;\n        _answeredInRound = _roundId;\n        _startedAt = block.timestamp;\n        _updatedAt = block.timestamp;\n    }\n\n    function setUpdatedAt(uint256 updatedAt_) external {\n        _updatedAt = updatedAt_;\n    }\n\n    function setIncompleteRound() external {\n        _answeredInRound = 0;\n        _roundId = 5;\n    }\n\n    function setRoundData(\n        uint80 roundId_,\n        int256 answer_,\n        uint256 startedAt_,\n        uint256 updatedAt_,\n        uint80 answeredInRound_\n    ) external {\n        _roundId = roundId_;\n        _answer = answer_;\n        _startedAt = startedAt_;\n        _updatedAt = updatedAt_;\n        _answeredInRound = answeredInRound_;\n    }\n\n    function getRoundData(\n        uint80 _requestedRoundId\n    )\n        external\n        view\n        returns (\n            uint80 roundId,\n            int256 answer,\n            uint256 startedAt,\n            uint256 updatedAt,\n            uint80 answeredInRound\n        )\n    {\n        return (\n            _requestedRoundId,\n            _answer,\n            _startedAt,\n            _updatedAt,\n            _answeredInRound\n        );\n    }\n\n    function latestRoundData()\n        external\n        view\n        override\n        returns (\n            uint80 roundId,\n            int256 answer,\n            uint256 startedAt,\n            uint256 updatedAt,\n            uint80 answeredInRound\n        )\n    {\n        return (_roundId, _answer, _startedAt, _updatedAt, _answeredInRound);\n    }\n}\n"
+      }
+    }
+  }
+}

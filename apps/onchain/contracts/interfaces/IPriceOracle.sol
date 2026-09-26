@@ -14,4 +14,8 @@ interface IPriceOracle {
     function getUsdPrice(
         address asset
     ) external view returns (uint256 priceWad);
+
+    function getUsdPriceSafe(
+        address asset
+    ) external view returns (uint256 priceWad, bool isStale, bool isValid);
 }
