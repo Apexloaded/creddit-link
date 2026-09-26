@@ -5,6 +5,7 @@ export const routes = {
   app: {
     dashboard: "/",
     deposit: "/deposit",
+    borrow: "/borrow",
   },
 } as const;
 

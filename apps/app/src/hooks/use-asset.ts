@@ -17,7 +17,7 @@ function useAsset() {
   const [selectedAsset, setSelectedAsset] = useState<IAsset | undefined>();
   const [assets, setAssets] = useState<IAsset[]>([]);
 
-  const { data: rawAssets, isLoading: isListLoading } = useListAssets(true);
+  const { data: rawAssets, isLoading: isRawListLoading } = useListAssets(true);
 
   // -------------------------------------------------------------------------
   // 1. STATIC FETCH: Symbols (Executed ONCE per asset list load)
@@ -35,22 +35,31 @@ function useAsset() {
     contracts: symbolContracts,
     query: {
       enabled: !!rawAssets && rawAssets.length > 0,
-      staleTime: Infinity, // Never automatically re-query symbols
-      gcTime: 1_000 * 60 * 60, // Cache for 1 hour
+      staleTime: Infinity,
+      gcTime: 1_000 * 60 * 60,
     },
   });
 
-  // Map static symbols to assets once available
+  // Map static symbols to assets ONLY once symbolsData is actually present
   const staticAssets = useMemo(() => {
-    if (!rawAssets) return [];
-    return rawAssets.map((asset, index) => ({
-      ...asset,
-      symbol: (symbolsData?.[index]?.result as string) ?? "",
-    }));
+    if (!rawAssets || !symbolsData || symbolsData.length === 0) return [];
+    
+    return rawAssets.map((asset, index) => {
+      const symResult = symbolsData?.[index]?.result;
+      return {
+        ...asset,
+        symbol: typeof symResult === "string" ? symResult : "",
+      };
+    });
   }, [rawAssets, symbolsData]);
 
+  // Combined asset list loading state
+  const isListLoading =
+    isRawListLoading ||
+    (!!rawAssets && rawAssets.length > 0 && (!symbolsData || isSymbolsLoading));
+
   // -------------------------------------------------------------------------
-  // 2. DYNAMIC FETCH: Balances & Prices (Polled every 12 seconds)
+  // 2. DYNAMIC FETCH: Balances & Prices
   // -------------------------------------------------------------------------
   const dynamicContracts = useMemo(() => {
     if (!staticAssets.length || !address) return [];
@@ -74,8 +83,7 @@ function useAsset() {
     contracts: dynamicContracts,
     query: {
       enabled: dynamicContracts.length > 0,
-      refetchInterval: 12_000, // Poll every 12s (1 block) for prices/balances only
-      // staleTime: 10_000,
+      refetchInterval: 12_000,
     },
   });
 
@@ -83,9 +91,9 @@ function useAsset() {
   // 3. COMBINE STATIC & DYNAMIC DATA INTO FINAL STATE
   // -------------------------------------------------------------------------
   useEffect(() => {
-    if (staticAssets.length > 0) {
+    // Only process if we have valid static assets with resolved symbols
+    if (staticAssets.length > 0 && staticAssets.every((a) => a.symbol !== "")) {
       const mapRawAssets: IAsset[] = staticAssets.map((asset, index) => {
-        // Dynamic index pairs (2 calls per asset: 0 = balance, 1 = price)
         const balanceCall = dynamicData?.[index * 2];
         const priceCall = dynamicData?.[index * 2 + 1];
 
@@ -95,7 +103,7 @@ function useAsset() {
         const isPriceError =
           priceCall?.status === "failure" || !priceCall?.result;
 
-        const [rawPrice = BigInt(0), isStale = false, isValid = false] =
+        const [rawPrice = BigInt(0), isStale = false] =
           (priceCall?.result as [bigint, boolean, boolean]) ?? [];
 
         const usdPriceFormatted = formatUnits(rawPrice, ORACLE_PRICE_DECIMALS);
@@ -134,7 +142,7 @@ function useAsset() {
     assets,
     selectedAsset,
     setSelectedAsset,
-    isListLoading: isListLoading || isSymbolsLoading,
+    isListLoading,
     isDynamicLoading,
   };
 }

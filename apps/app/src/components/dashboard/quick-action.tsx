@@ -21,7 +21,11 @@ function QuickAction({ className }: Props) {
           <SquareArrowDownIcon />
           Deposit
         </Button>
-        <Button size={"lg"} variant={"secondary"}>
+        <Button
+          size={"lg"}
+          variant={"secondary"}
+          render={<Link href={routes.app.borrow} />}
+        >
           <SquareArrowUpIcon />
           Borrow
         </Button>

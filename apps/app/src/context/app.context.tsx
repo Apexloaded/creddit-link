@@ -11,6 +11,10 @@ import { useStorage } from "@/hooks/use-storage";
 import { StorageKey } from "@/config/storage.config";
 import useAsset from "@/hooks/use-asset";
 import { IAsset } from "@/interfaces/asset.interface";
+import {
+  CollateralPosition,
+  useCollateralOf,
+} from "@/hooks/contracts/use-collateral";
 
 type AppState = {
   chain: number;
@@ -18,6 +22,8 @@ type AppState = {
   assets: IAsset[];
   selectedAsset: IAsset | undefined;
   setSelectedAsset: Dispatch<SetStateAction<IAsset | undefined>>;
+  positions: CollateralPosition[];
+  totalPositionValueUsd: string;
   isListLoading: boolean;
   isDynamicLoading: boolean;
 };
@@ -33,6 +39,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     isListLoading = false,
     isDynamicLoading = false,
   } = useAsset();
+  const { positions, totalUsdValue } = useCollateralOf(assets);
 
   const contextValue = useMemo(
     () => ({
@@ -41,6 +48,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       assets,
       selectedAsset,
       setSelectedAsset,
+      positions,
+      totalPositionValueUsd: totalUsdValue,
       isListLoading,
       isDynamicLoading,
     }),
@@ -50,6 +59,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       assets,
       selectedAsset,
       setSelectedAsset,
+      positions,
+      totalUsdValue,
       isListLoading,
       isDynamicLoading,
     ],

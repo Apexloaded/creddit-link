@@ -1,3 +1,6 @@
+import { TOKEN_DECIMALS } from "@/config/contract.config";
+import { parseUnits } from "viem";
+
 export { cn } from "cn";
 
 /**
@@ -153,4 +156,56 @@ export function formatCurrency(
   }
 
   return formattedValue;
+}
+
+/**
+ * Parses a string amount into a BigInt, handling decimals and validation.
+ * @param amount - The amount string to parse.
+ * @param decimals - The number of decimals for the token.
+ * @returns Parsed amount as BigInt, or 0 if invalid.
+ */
+export function parseAmount(
+  amount: string,
+  decimals: number = TOKEN_DECIMALS.USDG,
+) {
+  if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+    return BigInt(0);
+  }
+  try {
+    return parseUnits(amount, decimals);
+  } catch {
+    return BigInt(0);
+  }
+}
+
+/**
+ * Strips all non-numeric characters from a price input string.
+ *
+ * @param input - The raw price string (e.g., "$1,234.50", "USD 500")
+ * @param allowDecimal - Whether to preserve the decimal point (default: true)
+ * @returns A cleaned numeric string (e.g., "1234.50" or "123450")
+ */
+export function cleanPrice(
+  input: string | number | null | undefined,
+  allowDecimal = true,
+): string {
+  if (input === null || input === undefined) return "";
+
+  const strInput = String(input);
+
+  if (allowDecimal) {
+    // 1. Replace commas with dots if used as European decimal separators (e.g., "1.234,50" -> "1234.50")
+    // 2. Remove all non-digits and non-dots
+    // 3. Keep only the first dot if multiple dots exist
+    const cleaned = strInput.replace(/,/g, ".").replace(/[^0-9.]/g, "");
+
+    const parts = cleaned.split(".");
+    if (parts.length > 2) {
+      return `${parts[0]}.${parts.slice(1).join("")}`;
+    }
+    return cleaned;
+  }
+
+  // Pure digits only
+  return strInput.replace(/\D/g, "");
 }

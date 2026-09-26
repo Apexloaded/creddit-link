@@ -11,7 +11,7 @@ type Props = {
 
 export function CreditOverview({ creditLimit, isLoading }: Props) {
   const borrowed = 6800;
-  const totalCredit = 25220;
+  const totalCredit = parseFloat(creditLimit?.limit ?? "0");
   const availableCredit = totalCredit - borrowed;
   const utilization = (borrowed / totalCredit) * 100;
 
@@ -27,7 +27,7 @@ export function CreditOverview({ creditLimit, isLoading }: Props) {
             ) : (
               <div className="relative flex justify-between">
                 <h2 className="font-serif text-3xl tracking-tight text-foreground">
-                  {creditLimit ? formatCurrency(creditLimit?.limit) : "$0.00"}
+                  {creditLimit ? formatCurrency(totalCredit) : "$0.00"}
                 </h2>
                 {creditLimit?.isStale && (
                   <div className="h-5 absolute -right-6 bottom-2 flex items-center gap-1 justify-center">
@@ -40,7 +40,8 @@ export function CreditOverview({ creditLimit, isLoading }: Props) {
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className={"w-60"}>
                         <p className="text-center">
-                          This is a stale credit limit and cannot be borrowed against.
+                          This is a stale credit limit and cannot be borrowed
+                          against.
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -61,7 +62,7 @@ export function CreditOverview({ creditLimit, isLoading }: Props) {
           <span className="text-foreground/50">Used</span>
 
           <span className="font-medium text-foreground">
-            ${borrowed.toLocaleString()} / ${totalCredit.toLocaleString()}
+            ${borrowed.toLocaleString()} / {formatCurrency(totalCredit)}
           </span>
         </div>
 

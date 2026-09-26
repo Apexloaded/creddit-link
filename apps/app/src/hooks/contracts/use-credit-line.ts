@@ -1,22 +1,26 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   CREDDIT_PROTOCOL_ADDRESSES,
   ORACLE_PRICE_DECIMALS,
 } from "@/config/contract.config";
 import { creditLineAbi } from "@/contracts/abis/creditLineAbi";
-import { Address, parseUnits, erc20Abi, formatUnits } from "viem";
+import { Address, erc20Abi, formatUnits } from "viem";
 import {
   useConnection,
   useWriteContract,
   useConfig,
-  useReadContracts,
   useReadContract,
 } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { credditRiskEngineAbi } from "@/contracts/abis/credditRiskEngineAbi";
 import { RawCreditLimitSafe } from "@/contracts/interfaces/risk-engine";
+import { useErc20Details } from "./asset-registry";
+import { cleanPrice, parseAmount } from "@/lib/utils";
+
+const creditLineAddress = CREDDIT_PROTOCOL_ADDRESSES.CREDIT_LINE as Address;
+const usdgTokenAddress = CREDDIT_PROTOCOL_ADDRESSES.USDG_TOKEN as Address;
 
 export function useDepositCollateral(
   tokenAddress?: Address,
@@ -30,48 +34,13 @@ export function useDepositCollateral(
   >("idle");
   const [error, setError] = useState<Error | null>(null);
 
-  const creditLineAddress = CREDDIT_PROTOCOL_ADDRESSES.CREDIT_LINE as Address;
+  const { decimals, allowance, refetch } = useErc20Details(
+    tokenAddress,
+    creditLineAddress,
+  );
 
-  // Batch allowance + decimals into a single multicall instead of two
-  // sequential round-trips (and instead of trusting a caller-supplied
-  // `decimals` prop, which can silently mis-scale the deposit amount).
-  const { data: reads, refetch: refetchReads } = useReadContracts({
-    contracts: [
-      {
-        address: tokenAddress,
-        abi: erc20Abi,
-        functionName: "allowance",
-        args:
-          address && tokenAddress ? [address, creditLineAddress] : undefined,
-      },
-      {
-        address: tokenAddress,
-        abi: erc20Abi,
-        functionName: "decimals",
-      },
-    ],
-    query: {
-      enabled: !!address && !!tokenAddress,
-    },
-  });
-
-  const allowance = reads?.[0]?.result as bigint | undefined;
-  const decimals = (reads?.[1]?.result as number | undefined) ?? 18;
-
-  const parsedAmount = useMemo(() => {
-    if (
-      !rawAmountStr ||
-      isNaN(Number(rawAmountStr)) ||
-      Number(rawAmountStr) <= 0
-    ) {
-      return BigInt(0);
-    }
-    try {
-      return parseUnits(rawAmountStr, decimals);
-    } catch {
-      return BigInt(0);
-    }
-  }, [rawAmountStr, decimals]);
+  const cleanAmount = cleanPrice(rawAmountStr, true);
+  const parsedAmount = parseAmount(cleanAmount, decimals);
 
   const { writeContractAsync } = useWriteContract();
 
@@ -99,7 +68,7 @@ export function useDepositCollateral(
         // Use the freshly-fetched value directly rather than trusting a
         // stale closure on the next render — avoids a race where the
         // deposit fires before the new allowance has actually propagated.
-        const { data: refreshed } = await refetchReads();
+        const { data: refreshed } = await refetch();
         currentAllowance =
           (refreshed?.[0]?.result as bigint | undefined) ?? BigInt(0);
 
@@ -138,7 +107,7 @@ export function useDepositCollateral(
     creditLineAddress,
     config,
     writeContractAsync,
-    refetchReads,
+    refetch,
   ]);
 
   return {
@@ -151,7 +120,6 @@ export function useDepositCollateral(
 
 export function useCreditLimit() {
   const { address: userAddress } = useConnection();
-
   const query = useReadContract({
     address: CREDDIT_PROTOCOL_ADDRESSES.RISK_ENGINE,
     abi: credditRiskEngineAbi,
@@ -174,5 +142,50 @@ export function useCreditLimit() {
   return {
     creditLimit: query.data,
     isLoading: query.isLoading,
+  };
+}
+
+export function useBorrow() {
+  const { address } = useConnection();
+  const config = useConfig();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [stepStatus, setStepStatus] = useState<"idle" | "borrowing">("idle");
+  const [error, setError] = useState<Error | null>(null);
+  const { decimals } = useErc20Details(usdgTokenAddress);
+  const { writeContractAsync, error: borrowError } = useWriteContract();
+
+  const handleBorrow = useCallback(
+    async (amount: string) => {
+      const cleanAmount = cleanPrice(amount, true);
+      const parsedAmount = parseAmount(cleanAmount, decimals);
+      setIsProcessing(true);
+      try {
+        const depositHash = await writeContractAsync({
+          address: creditLineAddress,
+          abi: creditLineAbi,
+          functionName: "borrow",
+          args: [parsedAmount],
+        });
+
+        await waitForTransactionReceipt(config, { hash: depositHash });
+
+        return depositHash;
+      } catch (err) {
+        console.log(err);
+        setError(err instanceof Error ? err : new Error(String(err)));
+        throw err;
+      } finally {
+        setIsProcessing(false);
+        setStepStatus("idle");
+      }
+    },
+    [address, creditLineAddress, config, writeContractAsync],
+  );
+
+  return {
+    handleBorrow,
+    isProcessing,
+    stepStatus,
+    error,
   };
 }
