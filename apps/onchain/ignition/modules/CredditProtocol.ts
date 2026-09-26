@@ -156,6 +156,24 @@ export default buildModule("CredditProtocol", (m) => {
   };
 
   // ---------------------------------------------------------------------
+  // 0. CredditTreasury (UUPS via ERC1967Proxy)
+  // ---------------------------------------------------------------------
+  const treasuryImpl = m.contract("CredditTreasury", [], {
+    id: "CredditTreasuryImpl",
+  });
+  const treasuryInitData = m.encodeFunctionCall(treasuryImpl, "initialize", [
+    admin,
+  ]);
+  const treasuryProxy = m.contract(
+    "ERC1967Proxy",
+    [treasuryImpl, treasuryInitData],
+    { id: "CredditTreasuryProxy" },
+  );
+  const treasury = m.contractAt("CredditTreasury", treasuryProxy, {
+    id: "CredditTreasury",
+  });
+
+  // ---------------------------------------------------------------------
   // 1. CredditInterestRateModel (UUPS via ERC1967Proxy)
   // ---------------------------------------------------------------------
   const rateModelImpl = m.contract("CredditInterestRateModel", [], {
@@ -187,6 +205,7 @@ export default buildModule("CredditProtocol", (m) => {
     poolSymbol,
     admin,
     rateModel,
+    treasury,
   ]);
   const poolProxy = m.contract("ERC1967Proxy", [poolImpl, poolInitData], {
     id: "PoolProxy",
@@ -278,7 +297,7 @@ export default buildModule("CredditProtocol", (m) => {
   const creditLineInitData = m.encodeFunctionCall(
     creditLineImpl,
     "initialize",
-    [admin, registry, usdg, riskEngine, oracle, router],
+    [admin, registry, usdg, riskEngine, oracle, router, treasury],
   );
   const creditLineProxy = m.contract(
     "ERC1967Proxy",
@@ -360,6 +379,8 @@ export default buildModule("CredditProtocol", (m) => {
     routerProxy,
     creditLine,
     creditLineProxy,
+    treasury,
+    treasuryProxy,
     ...stockTokens,
     ...Object.fromEntries(
       Object.entries(stockFeeds).map(([symbol, feed]) => [

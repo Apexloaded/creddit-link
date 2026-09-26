@@ -7,6 +7,7 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {CredditCore} from "./CredditCore.sol";
 import {CredditInterestRateModel} from "./CredditInterestRateModel.sol";
+import {CredditTreasury} from "./CredditTreasury.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {WadMath} from "../libraries/WadMath.sol";
 import {ZeroAddressProvided} from "./CredditErrors.sol";
@@ -36,6 +37,8 @@ contract CredditLiquidityPool is
     CredditInterestRateModel public rateModel;
     /// @notice Fixed upfront fee per borrow in underlying asset units (or 0 if none).
     uint256 public originationFee;
+    /// @notice The treasury contract holding protocol fees and reserves.
+    CredditTreasury public treasury;
 
     /// @notice Emitted when the origination fee is updated.
     event OriginationFeeUpdated(uint256 newFee);
@@ -61,12 +64,14 @@ contract CredditLiquidityPool is
         string memory _name,
         string memory _symbol,
         address admin,
-        address rateModel_
+        address rateModel_,
+        address payable _treasury
     ) public initializer {
         if (
             asset == address(0) ||
             admin == address(0) ||
-            rateModel_ == address(0)
+            rateModel_ == address(0) ||
+            _treasury == address(0)
         ) revert ZeroAddressProvided();
 
         // Initialize Token contracts
@@ -78,9 +83,11 @@ contract CredditLiquidityPool is
 
         // Grant POOL_ADMIN_ROLE to the admin
         _grantRole(CredditRoles.POOL_ADMIN_ROLE, admin);
+        _grantRole(CredditRoles.TREASURY_ADMIN_ROLE, _treasury);
 
         rateModel = CredditInterestRateModel(rateModel_);
         lastAccrualTimestamp = block.timestamp;
+        treasury = CredditTreasury(_treasury);
     }
 
     /*********************************************************************
@@ -161,6 +168,13 @@ contract CredditLiquidityPool is
         emit RateModelUpdated(newRateModel);
     }
 
+    function setTreasury(
+        address payable newTreasury
+    ) external onlyRole(CredditRoles.POOL_ADMIN_ROLE) {
+        if (newTreasury == address(0)) revert ZeroAddressProvided();
+        treasury = CredditTreasury(newTreasury);
+    }
+
     /*********************************************************************
      * EXTERNAL WRITE FUNCTIONS (ILendingAdapter)
      *********************************************************************/
@@ -188,11 +202,16 @@ contract CredditLiquidityPool is
         uint256 fee = originationFee > amount ? amount : originationFee;
         received = amount - fee;
 
-        // Full amount (including fee) is booked as debt; the fee stays in
-        // the pool's balance immediately as revenue.
+        // Full principal is recorded as debt
         totalBorrows += amount;
 
+        // Send net funds to the borrower
         IERC20(asset()).safeTransfer(receiver, received);
+
+        // Send fee directly to Treasury
+        if (fee > 0 && address(treasury) != address(0)) {
+            IERC20(asset()).safeTransfer(address(treasury), fee);
+        }
 
         return received;
     }
@@ -318,5 +337,37 @@ contract CredditLiquidityPool is
         // WAD (1e18) -> bps (1e4)
         rateBps = rateWad / 1e14;
         fee = originationFee;
+    }
+
+    /*********************************************************************
+     * INTERNAL ERC4626 HOOKS
+     *********************************************************************/
+
+    /// @dev Internal hook override to update interest before minting shares.
+    function _deposit(
+        address caller,
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal override {
+        _accrueInterest();
+        super._deposit(caller, receiver, assets, shares);
+    }
+
+    /// @dev Internal hook override to update interest before burning shares.
+    function _withdraw(
+        address caller,
+        address receiver,
+        address owner,
+        uint256 assets,
+        uint256 shares
+    ) internal override {
+        _accrueInterest();
+        super._withdraw(caller, receiver, owner, assets, shares);
+    }
+
+    /// @dev Adds virtual shares and assets to protect against first-depositor share inflation attacks.
+    function _decimalsOffset() internal pure override returns (uint8) {
+        return 3;
     }
 }

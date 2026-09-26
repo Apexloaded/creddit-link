@@ -25,4 +25,8 @@ library CredditRoles {
 
     /// @notice Role used to protect liquidity pool configuration
     bytes32 public constant POOL_ADMIN_ROLE = keccak256("POOL_ADMIN_ROLE");
+
+    /// @notice Role used to protect treasury configuration
+    bytes32 public constant TREASURY_ADMIN_ROLE =
+        keccak256("TREASURY_ADMIN_ROLE");
 }

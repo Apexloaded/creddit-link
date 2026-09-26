@@ -9,6 +9,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {CredditCore} from "./CredditCore.sol";
 import {CredditAssetRegistry} from "./CredditAssetRegistry.sol";
 import {CredditRiskEngine} from "./CredditRiskEngine.sol";
+import {CredditTreasury} from "./CredditTreasury.sol";
 import {CredditLendingRouter} from "./CredditLendingRouter.sol";
 import {WadMath} from "../libraries/WadMath.sol";
 import {CreditRiskMath} from "../libraries/CreditRiskMath.sol";
@@ -56,6 +57,9 @@ contract CredditCreditLine is CredditCore {
 
     /// @dev The lending router contract.
     CredditLendingRouter public router;
+
+    /// @dev The treasury contract holding protocol fees and reserves.
+    CredditTreasury public treasury;
 
     /// @dev The USDG token contract.
     IERC20 public usdg;
@@ -179,7 +183,8 @@ contract CredditCreditLine is CredditCore {
         address _usdg,
         address _riskEngine,
         address _oracle,
-        address _router
+        address _router,
+        address payable _treasury
     ) external initializer {
         if (
             admin == address(0) ||
@@ -200,6 +205,7 @@ contract CredditCreditLine is CredditCore {
         router = CredditLendingRouter(_router);
         usdg = IERC20(_usdg);
         usdgDecimals = IERC20Metadata(_usdg).decimals();
+        treasury = CredditTreasury(_treasury);
 
         // Initialize debt index to 1
         debtIndexWad = WadMath.WAD;
@@ -577,8 +583,11 @@ contract CredditCreditLine is CredditCore {
         IERC20(debtAsset).safeTransfer(msg.sender, amounts.liquidatorReward);
 
         // Protocol fee logic
-        if (amounts.protocolFee > 0) {
-            // TODO: implement treasury transfer
+        if (amounts.protocolFee > 0 && address(treasury) != address(0)) {
+            IERC20(debtAsset).safeTransfer(
+                address(treasury),
+                amounts.protocolFee
+            );
         }
 
         emit Liquidated(
