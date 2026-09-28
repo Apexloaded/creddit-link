@@ -1,5 +1,5 @@
-import DepositCollateral from "@/components/actions/deposit-collateral";
+import DepositModal from "@/components/deposit/deposit-modal";
 
-export default function DepositModal() {
-  return <DepositCollateral />;
+export default function DepositSegment() {
+  return <DepositModal />;
 }

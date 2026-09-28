@@ -173,7 +173,7 @@ contract CredditOracle is CredditCore, IPriceOracle {
         (priceWad, isStale, isValid, ) = _getPriceInternal(asset);
         // If the round is incomplete or invalid, treat it as stale/unusable for the UI
         if (!isValid) {
-            return (0, true, isValid);
+            return (0, isStale, isValid);
         }
     }
 

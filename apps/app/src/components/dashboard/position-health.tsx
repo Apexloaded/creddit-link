@@ -5,7 +5,7 @@ export function PositionHealthCard() {
   const liquidationThreshold = 70;
 
   return (
-    <section className="border lg:border-l-0 border-foreground/10 bg-background shadow-md p-6">
+    <section className="border lg:border-l-0 border-foreground/10 bg-background p-6">
       <div className="flex items-start justify-between">
         <div className="flex items-center justify-between flex-1">
           <p className="text-sm text-foreground/50">Position Health</p>

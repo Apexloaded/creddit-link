@@ -1,18 +1,27 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useConfig, useConnection, useWriteContract } from "wagmi";
+import {
+  useConfig,
+  useConnection,
+  useReadContracts,
+  useWriteContract,
+} from "wagmi";
 import { useErc20Details } from "./asset-registry";
-import { CREDDIT_PROTOCOL_ADDRESSES } from "@/config/contract.config";
+import {
+  CREDDIT_PROTOCOL_ADDRESSES,
+  TOKEN_DECIMALS,
+} from "@/config/contract.config";
 import { Address } from "viem/accounts";
 import { cleanPrice, parseAmount } from "@/lib/utils";
 import { credditLiquidityPoolAbi } from "@/contracts/abis/credditLiquidityPoolAbi";
 import { erc20Abi } from "@/contracts/abis/erc20Abi";
 import { waitForTransactionReceipt } from "wagmi/actions";
+import { formatUnits } from "viem";
 
 const credditLiquidityPoolAddress =
   CREDDIT_PROTOCOL_ADDRESSES.LIQUIDITY_POOL as Address;
-const usdgTokenAddress = CREDDIT_PROTOCOL_ADDRESSES.USDG_TOKEN as Address;
+const usdgTokenAddress = CREDDIT_PROTOCOL_ADDRESSES.USDG as Address;
 
 export function useDepositLiquidity() {
   const { address } = useConnection();
@@ -95,7 +104,7 @@ export function useDepositLiquidity() {
       config,
       credditLiquidityPoolAddress,
       writeContractAsync,
-      refetch
+      refetch,
     ],
   );
 
@@ -104,5 +113,97 @@ export function useDepositLiquidity() {
     isProcessing,
     stepStatus,
     error,
+  };
+}
+
+export function useLiquidityPoolData() {
+  const { address: userAddress } = useConnection();
+
+  const contracts = credditLiquidityPoolAddress
+    ? [
+        // 0: Current Active Debt
+        {
+          address: credditLiquidityPoolAddress,
+          abi: credditLiquidityPoolAbi,
+          functionName: "currentDebt" as const,
+        },
+        // 1: Liquid Cash in Pool
+        {
+          address: credditLiquidityPoolAddress,
+          abi: credditLiquidityPoolAbi,
+          functionName: "availableLiquidity" as const,
+        },
+        // 2: Total Assets Managed (Cash + Debt)
+        {
+          address: credditLiquidityPoolAddress,
+          abi: credditLiquidityPoolAbi,
+          functionName: "totalAssets" as const,
+        },
+        // 3: Total Issued LP Shares (cUSDG)
+        {
+          address: credditLiquidityPoolAddress,
+          abi: credditLiquidityPoolAbi,
+          functionName: "totalSupply" as const,
+        },
+        // 4: Quote Borrow Rate (rateBps, fee)
+        {
+          address: credditLiquidityPoolAddress,
+          abi: credditLiquidityPoolAbi,
+          functionName: "quoteBorrow" as const,
+        },
+        // 5: User Share Balance
+        {
+          address: credditLiquidityPoolAddress,
+          abi: credditLiquidityPoolAbi,
+          functionName: "balanceOf" as const,
+          args: userAddress ? [userAddress] : undefined,
+        },
+      ]
+    : [];
+
+  const { data, isLoading, refetch } = useReadContracts({
+    contracts,
+    query: {
+      enabled: Boolean(credditLiquidityPoolAddress),
+      staleTime: 1000 * 15, // Refresh every 15s
+    },
+  });
+
+  // Extract raw BigInt values cleanly
+  const currentDebt =
+    data?.[0]?.status === "success" ? (data[0].result as bigint) : BigInt(0);
+  const availableLiquidity =
+    data?.[1]?.status === "success" ? (data[1].result as bigint) : BigInt(0);
+  const totalAssets =
+    data?.[2]?.status === "success" ? (data[2].result as bigint) : BigInt(0);
+  const totalSupply =
+    data?.[3]?.status === "success" ? (data[3].result as bigint) : BigInt(0);
+
+  // quoteBorrow returns [rateBps, fee]
+  const quoteBorrow =
+    data?.[4]?.status === "success"
+      ? (data[4].result as [bigint, bigint])
+      : [BigInt(0), BigInt(0)];
+
+  const borrowRateBps = quoteBorrow[0]; // e.g. 700n for 7.00%
+  const originationFee = quoteBorrow[1];
+
+  const userShares =
+    userAddress && data?.[5]?.status === "success"
+      ? (data[5].result as bigint)
+      : BigInt(0);
+  const formattedShare = formatUnits(userShares, TOKEN_DECIMALS.USDG);
+
+  return {
+    currentDebt,
+    availableLiquidity,
+    totalAssets,
+    totalSupply,
+    borrowRateBps,
+    originationFee,
+    userShares,
+    formattedShare,
+    isLoading,
+    refetch,
   };
 }

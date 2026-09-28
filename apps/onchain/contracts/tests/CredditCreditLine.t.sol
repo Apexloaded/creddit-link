@@ -16,6 +16,7 @@ import {MockOracle} from "../mock/MockOracle.sol";
 import {MockERC20} from "../mock/MockERC20.sol";
 import {MockRiskEngine} from "../mock/MockRiskEngine.sol";
 import {MockRouter} from "../mock/MockRouter.sol";
+import {CredditTreasury} from "../core/CredditTreasury.sol";
 
 /* =========================================================================
  * TEST SUITE
@@ -31,6 +32,7 @@ contract CredditCreditLineTest is Test {
     MockRiskEngine public riskEngine;
     MockOracle public oracle;
     MockRouter public router;
+    CredditTreasury public treasury;
 
     MockERC20 public usdg;
     MockERC20 public stockTokenA;
@@ -124,6 +126,7 @@ contract CredditCreditLineTest is Test {
 
         riskEngine = new MockRiskEngine();
         router = new MockRouter(address(usdg));
+        treasury = new CredditTreasury();
 
         // 4. Deploy CredditCreditLine
         creditLineImpl = new CredditCreditLine();
@@ -135,7 +138,8 @@ contract CredditCreditLineTest is Test {
                 address(usdg),
                 address(riskEngine),
                 address(oracle),
-                address(router)
+                address(router),
+                payable(treasury)
             )
         );
         ERC1967Proxy clProxy = new ERC1967Proxy(
@@ -187,7 +191,8 @@ contract CredditCreditLineTest is Test {
                 address(usdg),
                 address(riskEngine),
                 address(oracle),
-                address(router)
+                address(router),
+                payable(treasury)
             )
         );
         vm.expectRevert(ZeroAddressProvided.selector);

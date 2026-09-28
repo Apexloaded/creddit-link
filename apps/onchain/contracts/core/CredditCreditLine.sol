@@ -28,7 +28,6 @@ error InsufficientCollateralBalance(
 error NoActiveDebt(address user);
 error ExceedsCreditLimit(uint256 requestedDebt, uint256 creditLimit);
 error PositionNotLiquidatable(address user, uint256 debt);
-error CloseFactorExceeded(uint256 debtToCover, uint256 maxRepay);
 error InsufficientSeizableCollateral(
     address asset,
     uint256 requested,
@@ -283,7 +282,7 @@ contract CredditCreditLine is CredditCore {
         // Solvency check: with the ledger already reduced, the remaining
         // collateral must still support the outstanding debt.
         _syncDebtIndex();
-        uint256 debtWad = _debt(msg.sender);
+        uint256 debtWad = _debtWad(msg.sender);
         if (debtWad != 0) {
             (uint256 liqWeighted, , ) = riskEngine.riskAdjustedValue(
                 address(this),
@@ -306,7 +305,7 @@ contract CredditCreditLine is CredditCore {
         _syncDebtIndex();
 
         uint256 amountWad = amount.toWad(usdgDecimals);
-        uint256 currentUserDebt = _debt(msg.sender);
+        uint256 currentUserDebt = _debtWad(msg.sender);
         uint256 newDebt = currentUserDebt + amountWad;
 
         uint256 limitWad = riskEngine.creditLimit(address(this), msg.sender);
@@ -341,13 +340,13 @@ contract CredditCreditLine is CredditCore {
 
     /// @notice Liquidates the collateral of a user.
     /// @param borrower The address of the user to liquidate collateral for.
-    /// @param debtAsset The asset to liquidate collateral for.
+    /// @param collateralAsset The asset to liquidate collateral for.
     /// @param debtToCover The amount of USDG to liquidate collateral for.
     /// @dev user can repay partial of the debt or the whole debt
     /// @dev anyone can call this function to liquidate
     function liquidate(
         address borrower,
-        address debtAsset,
+        address collateralAsset,
         uint256 debtToCover
     ) external nonReentrant whenNotPaused {
         if (debtToCover == 0) revert ZeroAmount();
@@ -362,12 +361,12 @@ contract CredditCreditLine is CredditCore {
         // Step 2: Compute oracle prices, dynamic collateral capping, and fee breakdowns
         LiquidationAmounts memory amounts = _calculateLiquidationSeizure(
             borrower,
-            debtAsset,
+            collateralAsset,
             debtToCoverWad
         );
 
         // Step 3: Apply state changes, burn shares, repay debt, and transfer tokens
-        _executeLiquidationState(borrower, debtAsset, amounts);
+        _executeLiquidationState(borrower, collateralAsset, amounts);
     }
 
     /*********************************************************************
@@ -383,6 +382,27 @@ contract CredditCreditLine is CredditCore {
         address asset
     ) external view returns (uint256) {
         return userCollateralBalance[user][asset];
+    }
+
+    /// @notice Returns the debt for a specific user.
+    /// @param user The address of the user.
+    /// @return The amount of debt for the specified user.
+    function userDebt(address user) external view returns (uint256) {
+        return _debtWad(user);
+    }
+
+    /// @notice Returns the risk adjusted value for a specific user.
+    /// @param user The address of the user.
+    /// @return The risk adjusted value for the specified user.
+    function userRiskAdjustedValue(
+        address user
+    ) external view returns (uint256) {
+        (uint256 liqWeighted, , ) = riskEngine.riskAdjustedValue(
+            address(this),
+            user,
+            false
+        );
+        return liqWeighted;
     }
 
     /*********************************************************************
@@ -436,7 +456,7 @@ contract CredditCreditLine is CredditCore {
         address borrower,
         uint256 debtToCover
     ) internal view returns (uint256 debtToCoverWad) {
-        uint256 debtWad = _debt(borrower);
+        uint256 debtWad = _debtWad(borrower);
 
         bool isLiquidatable = riskEngine.isLiquidatable(
             address(this),
@@ -457,26 +477,26 @@ contract CredditCreditLine is CredditCore {
         uint256 closeFactorWad = riskEngine.liquidationCloseFactorWad();
         uint256 maxRepayWad = debtWad.wadMulDown(closeFactorWad);
 
-        if (debtToCoverWad < debtWad && debtToCoverWad > maxRepayWad) {
-            revert CloseFactorExceeded(debtToCoverWad, maxRepayWad);
+        if (debtToCoverWad > maxRepayWad) {
+            debtToCoverWad = maxRepayWad;
         }
     }
 
     /// @notice Handles oracle price fetching and computes collateral seizure, dynamic capping, and fee splits.
     /// @param borrower The address of the user to liquidate collateral for.
-    /// @param debtAsset The address of the asset to liquidate collateral for.
+    /// @param collateralAsset The address of the asset to liquidate collateral for.
     /// @param debtToCoverWad The amount of USDG to liquidate collateral for in 18 decimals.
     /// @return amounts The collateral seizure amounts.
     function _calculateLiquidationSeizure(
         address borrower,
-        address debtAsset,
+        address collateralAsset,
         uint256 debtToCoverWad
     ) internal view returns (LiquidationAmounts memory amounts) {
         CredditAssetRegistry.AssetConfig memory cfg = registry.getAsset(
-            debtAsset
+            collateralAsset
         );
 
-        uint256 collateralPriceWad = oracle.getUsdPrice(debtAsset);
+        uint256 collateralPriceWad = oracle.getUsdPrice(collateralAsset);
         uint256 usdgPriceWad = oracle.getUsdPrice(address(usdg));
 
         uint256 debtValueUsdWad = debtToCoverWad.wadMulDown(usdgPriceWad);
@@ -490,14 +510,14 @@ contract CredditCreditLine is CredditCore {
         );
 
         uint256 availableCollateral = userCollateralBalance[borrower][
-            debtAsset
+            collateralAsset
         ];
 
         // Dynamic Collateral Capping
         if (amounts.totalCollateralToSeize > availableCollateral) {
             if (availableCollateral == 0) {
                 revert InsufficientSeizableCollateral(
-                    debtAsset,
+                    collateralAsset,
                     amounts.totalCollateralToSeize,
                     availableCollateral
                 );
@@ -541,17 +561,24 @@ contract CredditCreditLine is CredditCore {
 
     /// @notice Updates storage ledgers, burns debt shares, executes transfers, and emits event.
     /// @param borrower The address of the user to liquidate collateral for.
-    /// @param debtAsset The address of the asset to liquidate collateral for.
+    /// @param collateralAsset The address of the asset to liquidate collateral for.
     /// @param amounts The collateral seizure amounts.
     function _executeLiquidationState(
         address borrower,
-        address debtAsset,
+        address collateralAsset,
         LiquidationAmounts memory amounts
     ) internal {
+        uint256 borrowerDebtWad = _debtWad(borrower);
+        uint256 sharesToRemove;
+
         // Calculate exact shares to burn using wadDivUp
-        uint256 sharesToRemove = amounts.debtToCoverWad.wadDivUp(debtIndexWad);
-        if (sharesToRemove > debtShares[borrower]) {
+        if (amounts.debtToCoverWad >= borrowerDebtWad) {
             sharesToRemove = debtShares[borrower];
+        } else {
+            sharesToRemove = amounts.debtToCoverWad.wadDivUp(debtIndexWad);
+            if (sharesToRemove > debtShares[borrower]) {
+                sharesToRemove = debtShares[borrower];
+            }
         }
 
         // Update Debt Shares
@@ -560,15 +587,15 @@ contract CredditCreditLine is CredditCore {
 
         // Update Local Collateral Ledger
         uint256 availableCollateral = userCollateralBalance[borrower][
-            debtAsset
+            collateralAsset
         ];
-        userCollateralBalance[borrower][debtAsset] =
+        userCollateralBalance[borrower][collateralAsset] =
             availableCollateral -
             amounts.totalCollateralToSeize;
-        totalDeposited[debtAsset] -= amounts.totalCollateralToSeize;
+        totalDeposited[collateralAsset] -= amounts.totalCollateralToSeize;
 
         if (availableCollateral == amounts.totalCollateralToSeize) {
-            _removeCollateralAsset(borrower, debtAsset);
+            _removeCollateralAsset(borrower, collateralAsset);
         }
 
         // Repay debt through router
@@ -580,11 +607,14 @@ contract CredditCreditLine is CredditCore {
         );
 
         // Transfer seized collateral reward to liquidator
-        IERC20(debtAsset).safeTransfer(msg.sender, amounts.liquidatorReward);
+        IERC20(collateralAsset).safeTransfer(
+            msg.sender,
+            amounts.liquidatorReward
+        );
 
         // Protocol fee logic
         if (amounts.protocolFee > 0 && address(treasury) != address(0)) {
-            IERC20(debtAsset).safeTransfer(
+            IERC20(collateralAsset).safeTransfer(
                 address(treasury),
                 amounts.protocolFee
             );
@@ -593,7 +623,7 @@ contract CredditCreditLine is CredditCore {
         emit Liquidated(
             msg.sender,
             borrower,
-            debtAsset,
+            collateralAsset,
             amounts.debtToCoverWad,
             amounts.totalCollateralToSeize
         );
@@ -633,7 +663,7 @@ contract CredditCreditLine is CredditCore {
     /// @notice Calculates the debt of the specified user.
     /// @param user The address of the user.
     /// @return The debt balance of the specified user in USDG.
-    function _debt(address user) internal view returns (uint256) {
+    function _debtWad(address user) internal view returns (uint256) {
         return debtShares[user].wadMulUp(debtIndexWad);
     }
 
@@ -645,7 +675,7 @@ contract CredditCreditLine is CredditCore {
         if (amount == 0) revert ZeroAmount();
         _syncDebtIndex();
 
-        uint256 debtWad = _debt(user);
+        uint256 debtWad = _debtWad(user);
         if (debtWad == 0) revert NoActiveDebt(user);
 
         uint256 amountWad = amount.toWad(usdgDecimals);
@@ -690,7 +720,7 @@ contract CredditCreditLine is CredditCore {
             actualAmountRepaidWad
         );
 
-        uint256 remainingDebtWad = _debt(user);
+        uint256 remainingDebtWad = _debtWad(user);
 
         emit Repaid(
             payer,

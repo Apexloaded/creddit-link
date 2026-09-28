@@ -1,6 +1,6 @@
 import React from "react";
 import { Button } from "../ui/button";
-import { PlusIcon, SquareArrowDownIcon, SquareArrowUpIcon } from "lucide-react";
+import { PlusCircleIcon, PlusIcon, SquareArrowDownIcon, SquareArrowUpIcon } from "lucide-react";
 import { cn } from "cn";
 import Link from "next/link";
 import { routes } from "@/lib/route";
@@ -28,6 +28,14 @@ function QuickAction({ className }: Props) {
         >
           <SquareArrowUpIcon />
           Borrow
+        </Button>
+        <Button
+          size={"lg"}
+          variant={"secondary"}
+          render={<Link href={routes.app.earn} />}
+        >
+          <PlusCircleIcon />
+          Earn
         </Button>
         <Button size={"icon-lg"} variant={"secondary"}>
           <PlusIcon />

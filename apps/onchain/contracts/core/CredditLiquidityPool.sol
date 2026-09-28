@@ -2,9 +2,15 @@
 pragma solidity ^0.8.27;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import {
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    ERC20Upgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {
+    ERC4626Upgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {CredditCore} from "./CredditCore.sol";
 import {CredditInterestRateModel} from "./CredditInterestRateModel.sol";
 import {CredditTreasury} from "./CredditTreasury.sol";
@@ -12,7 +18,9 @@ import {CredditRoles} from "../libraries/CredditRole.sol";
 import {WadMath} from "../libraries/WadMath.sol";
 import {ZeroAddressProvided} from "./CredditErrors.sol";
 import {ILendingAdapter} from "../interfaces/ILendingAdapter.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {
+    IERC20Metadata
+} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /// @notice Custom errors for ILendingAdapter interactions
 error InsufficientLiquidity();
@@ -104,17 +112,25 @@ contract CredditLiquidityPool is
 
         // Use raw balance + totalBorrows here (not totalAssets()) to avoid
         // re-entering totalAssets(), which itself calls this function.
-        uint256 totalLiquidityWad = IERC20(asset()).balanceOf(address(this)) +
+        uint256 totalLiquidity = IERC20(asset()).balanceOf(address(this)) +
             totalBorrows;
+        uint8 assetDecimals = IERC20Metadata(asset()).decimals();
+
+        // Convert raw asset units to WAD for rate model compatibility
+        uint256 totalBorrowsWad = totalBorrows.toWad(assetDecimals);
+        uint256 totalLiquidityWad = totalLiquidity.toWad(assetDecimals);
+
         uint256 rateWad = rateModel.getBorrowRateWad(
-            totalBorrows,
+            totalBorrowsWad,
             totalLiquidityWad
         );
 
-        // Linear Interest Formula:
-        // interest = totalBorrows * rateWad * timeElapsed / (SECONDS_PER_YEAR * 1e18)
-        uint256 annualInterest = totalBorrows.wadMulDown(rateWad);
-        newInterest = (annualInterest * timeElapsed) / SECONDS_PER_YEAR;
+        // (totalBorrows * rateWad * timeElapsed) / (SECONDS_PER_YEAR * WAD)
+        newInterest = totalBorrows.wadMulDivUp(
+            rateWad,
+            timeElapsed,
+            SECONDS_PER_YEAR
+        );
     }
 
     /// @dev Accrues interest and updates `totalBorrows` and `lastAccrualTimestamp`.
@@ -327,15 +343,19 @@ contract CredditLiquidityPool is
         override(ILendingAdapter)
         returns (uint256 rateBps, uint256 fee)
     {
-        uint256 totalLiquidityWad = IERC20(asset()).balanceOf(address(this)) +
+        uint256 totalLiquidity = IERC20(asset()).balanceOf(address(this)) +
             totalBorrows;
+        uint8 assetDecimals = IERC20Metadata(asset()).decimals();
+
+        uint256 totalLiquidityWad = totalLiquidity.toWad(assetDecimals);
+        uint256 totalBorrowsWad = totalBorrows.toWad(assetDecimals);
+
         uint256 rateWad = rateModel.getBorrowRateWad(
-            totalBorrows,
+            totalBorrowsWad,
             totalLiquidityWad
         );
 
-        // WAD (1e18) -> bps (1e4)
-        rateBps = rateWad / 1e14;
+        rateBps = rateWad.wadToBpsDown();
         fee = originationFee;
     }
 

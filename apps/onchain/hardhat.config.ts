@@ -52,4 +52,11 @@ export default defineConfig({
       accounts: [configVariable("RH_TESTNET_PRIVATE_KEY")],
     },
   },
+  // ignition: {
+  //   strategyConfig: {
+  //     create2: {
+  //       salt: "0x0000000000000000000000000000000000000000000000000000000000000000",
+  //     },
+  //   },
+  // },
 });

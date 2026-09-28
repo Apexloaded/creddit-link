@@ -1,4 +1,4 @@
-export const creditLineAbi = [
+export const credditCreditLineAbi = [
   {
     inputs: [],
     name: "AccessControlBadConfirmation",
@@ -865,6 +865,11 @@ export const creditLineAbi = [
         name: "_router",
         type: "address",
       },
+      {
+        internalType: "address payable",
+        name: "_treasury",
+        type: "address",
+      },
     ],
     name: "initialize",
     outputs: [],
@@ -1145,6 +1150,19 @@ export const creditLineAbi = [
   },
   {
     inputs: [],
+    name: "treasury",
+    outputs: [
+      {
+        internalType: "contract CredditTreasury",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "unpause",
     outputs: [],
     stateMutability: "nonpayable",
@@ -1208,6 +1226,44 @@ export const creditLineAbi = [
       },
     ],
     name: "userCollateralBalance",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+    ],
+    name: "userDebt",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+    ],
+    name: "userRiskAdjustedValue",
     outputs: [
       {
         internalType: "uint256",

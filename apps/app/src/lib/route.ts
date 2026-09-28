@@ -6,6 +6,7 @@ export const routes = {
     dashboard: "/",
     deposit: "/deposit",
     borrow: "/borrow",
+    earn: "/earn",
   },
 } as const;
 

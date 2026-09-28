@@ -171,7 +171,8 @@ contract CredditRiskEngine is CredditCore {
             source,
             user,
             configs,
-            shouldUseSafe
+            shouldUseSafe,
+            false
         );
     }
 
@@ -228,7 +229,8 @@ contract CredditRiskEngine is CredditCore {
             source,
             user,
             configs,
-            shouldUseSafe
+            shouldUseSafe,
+            true
         );
     }
 
@@ -244,24 +246,39 @@ contract CredditRiskEngine is CredditCore {
         address source,
         address user,
         CredditAssetRegistry.AssetConfig[] memory configs,
-        bool shouldUseSafe
+        bool shouldUseSafe,
+        bool isLiquidationThreshold
     ) internal view returns (uint256 total, bool isStale, bool isValid) {
+        isValid = true;
+        isStale = false;
+
         for (uint256 i; i < configs.length; ++i) {
             CredditAssetRegistry.AssetConfig memory cfg = configs[i];
             uint256 collateral = ICollateralSource(source).collateralOf(
                 user,
                 cfg.token
             );
-            uint256 value;
-            (value, isStale, isValid) = _assetValue(
+
+            // Skip assets user does not hold.
+            // Unused assets must not affect portfolio health or trigger oracle reads.
+            if (collateral == 0) continue;
+
+            (uint256 value, bool assetStale, bool assetValid) = _assetValue(
                 collateral,
                 cfg.token,
                 cfg,
                 shouldUseSafe
             );
+
+            if (assetStale) isStale = true;
+            if (!assetValid) isValid = false;
+            uint16 bps = isLiquidationThreshold
+                ? cfg.liquidationThresholdBps
+                : cfg.collateralFactorBps;
+
             total += CreditRiskMath.riskAdjustedValue(
                 value,
-                uint256(cfg.collateralFactorBps).bpsToWad()
+                uint256(bps).bpsToWad()
             );
         }
     }
@@ -280,7 +297,6 @@ contract CredditRiskEngine is CredditCore {
         CredditAssetRegistry.AssetConfig memory assetCfg,
         bool shouldUseSafe
     ) internal view returns (uint256 value, bool isStale, bool isValid) {
-        if (collateral == 0) return (0, false, false);
         uint256 priceWad;
         if (shouldUseSafe) {
             (priceWad, isStale, isValid) = oracle.getUsdPriceSafe(asset);

@@ -5,13 +5,13 @@ import {
   CREDDIT_PROTOCOL_ADDRESSES,
   ORACLE_PRICE_DECIMALS,
 } from "@/config/contract.config";
-import { creditLineAbi } from "@/contracts/abis/creditLineAbi";
+import { credditCreditLineAbi } from "@/contracts/abis/credditCreditLineAbi";
 import { Address, erc20Abi, formatUnits } from "viem";
 import {
   useConnection,
   useWriteContract,
   useConfig,
-  useReadContract,
+  useReadContracts,
 } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { credditRiskEngineAbi } from "@/contracts/abis/credditRiskEngineAbi";
@@ -20,13 +20,13 @@ import { useErc20Details } from "./asset-registry";
 import { cleanPrice, parseAmount } from "@/lib/utils";
 
 const creditLineAddress = CREDDIT_PROTOCOL_ADDRESSES.CREDIT_LINE as Address;
-const usdgTokenAddress = CREDDIT_PROTOCOL_ADDRESSES.USDG_TOKEN as Address;
+const usdgTokenAddress = CREDDIT_PROTOCOL_ADDRESSES.USDG as Address;
 
 export function useDepositCollateral(
   tokenAddress?: Address,
   rawAmountStr?: string,
 ) {
-  const { address } = useConnection();
+  const { address, chainId } = useConnection();
   const config = useConfig();
   const [isProcessing, setIsProcessing] = useState(false);
   const [stepStatus, setStepStatus] = useState<
@@ -84,7 +84,7 @@ export function useDepositCollateral(
 
       const depositHash = await writeContractAsync({
         address: creditLineAddress,
-        abi: creditLineAbi,
+        abi: credditCreditLineAbi,
         functionName: "depositCollateral",
         args: [tokenAddress, parsedAmount],
       });
@@ -120,28 +120,95 @@ export function useDepositCollateral(
 
 export function useCreditLimit() {
   const { address: userAddress } = useConnection();
-  const query = useReadContract({
-    address: CREDDIT_PROTOCOL_ADDRESSES.RISK_ENGINE,
-    abi: credditRiskEngineAbi,
-    functionName: "creditLimitSafe",
-    args: [CREDDIT_PROTOCOL_ADDRESSES.CREDIT_LINE, userAddress!],
+
+  const contracts = [
+    {
+      address: CREDDIT_PROTOCOL_ADDRESSES.RISK_ENGINE,
+      abi: credditRiskEngineAbi,
+      functionName: "creditLimitSafe",
+      args: userAddress
+        ? [CREDDIT_PROTOCOL_ADDRESSES.CREDIT_LINE, userAddress]
+        : undefined,
+    },
+    {
+      address: CREDDIT_PROTOCOL_ADDRESSES.CREDIT_LINE,
+      abi: credditCreditLineAbi,
+      functionName: "userDebt",
+      args: userAddress ? [userAddress] : undefined,
+    },
+    {
+      address: CREDDIT_PROTOCOL_ADDRESSES.RISK_ENGINE,
+      abi: credditRiskEngineAbi,
+      functionName: "liquidationValue",
+      args: userAddress
+        ? [CREDDIT_PROTOCOL_ADDRESSES.CREDIT_LINE, userAddress, true]
+        : undefined,
+    },
+  ];
+
+  const { data, isLoading, isError, refetch } = useReadContracts({
+    contracts,
     query: {
-      staleTime: 1000 * 1 * 60, // 1 minute
-      select: (data): RawCreditLimitSafe => {
-        const [limit, isStale, isValid] = data;
-        return {
-          limit: formatUnits(limit, ORACLE_PRICE_DECIMALS),
-          isStale,
-          isValid,
-        };
-      },
-      enabled: !!userAddress,
+      enabled: Boolean(userAddress),
+      staleTime: 1000 * 60 * 5, // 5 minutes
     },
   });
 
+  const [creditLimitResult, userDebtResult, liquidationValueResult] =
+    data || [];
+
+  // Parse raw values
+  const rawCreditLimitData =
+    creditLimitResult?.status === "success"
+      ? (creditLimitResult?.result as unknown as [bigint, boolean, boolean])
+      : null;
+
+  const rawUserDebt =
+    userDebtResult?.status === "success"
+      ? (userDebtResult.result as unknown as bigint)
+      : null;
+
+  const rawUserLiquidationValue =
+    userDebtResult?.status === "success"
+      ? (liquidationValueResult.result as unknown as [bigint, boolean, boolean])
+      : null;
+
+  console.log("RAW LIQUID VALUE :: :: ", rawUserLiquidationValue);
+
+  // Transform and format output values
+  const parsedData: RawCreditLimitSafe = (() => {
+    if (!rawCreditLimitData || !rawUserLiquidationValue)
+      return {
+        limit: "0",
+        userDebt: "0",
+        availableCredit: "0",
+        isStale: true,
+        isValid: false,
+      };
+
+    const [limitRaw, isStale, isValid] = rawCreditLimitData;
+    const [liquidationValueRaw] = rawUserLiquidationValue;
+    const userDebtRaw = rawUserDebt ?? BigInt(0);
+
+    // Available credit in raw BigInt terms (non-negative)
+    const availableCreditRaw =
+      limitRaw > userDebtRaw ? limitRaw - userDebtRaw : BigInt(0);
+
+    return {
+      limit: formatUnits(limitRaw, ORACLE_PRICE_DECIMALS),
+      userDebt: formatUnits(userDebtRaw, ORACLE_PRICE_DECIMALS),
+      availableCredit: formatUnits(availableCreditRaw, ORACLE_PRICE_DECIMALS),
+      liquidationValue: formatUnits(liquidationValueRaw, ORACLE_PRICE_DECIMALS),
+      isStale,
+      isValid,
+    };
+  })();
+
   return {
-    creditLimit: query.data,
-    isLoading: query.isLoading,
+    creditLimit: parsedData,
+    isLoading,
+    isError,
+    refetch,
   };
 }
 
@@ -151,18 +218,28 @@ export function useBorrow() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [stepStatus, setStepStatus] = useState<"idle" | "borrowing">("idle");
   const [error, setError] = useState<Error | null>(null);
-  const { decimals } = useErc20Details(usdgTokenAddress);
-  const { writeContractAsync, error: borrowError } = useWriteContract();
+
+  const { decimals, isLoading: isDecimalsLoading } =
+    useErc20Details(usdgTokenAddress);
+  const { writeContractAsync } = useWriteContract();
 
   const handleBorrow = useCallback(
     async (amount: string) => {
+      if (isDecimalsLoading) {
+        const err = new Error("Token details are still loading");
+        setError(err);
+        throw err;
+      }
+
       const cleanAmount = cleanPrice(amount, true);
       const parsedAmount = parseAmount(cleanAmount, decimals);
+
       setIsProcessing(true);
+      setStepStatus("borrowing");
       try {
         const depositHash = await writeContractAsync({
           address: creditLineAddress,
-          abi: creditLineAbi,
+          abi: credditCreditLineAbi,
           functionName: "borrow",
           args: [parsedAmount],
         });
@@ -171,7 +248,6 @@ export function useBorrow() {
 
         return depositHash;
       } catch (err) {
-        console.log(err);
         setError(err instanceof Error ? err : new Error(String(err)));
         throw err;
       } finally {
@@ -179,7 +255,7 @@ export function useBorrow() {
         setStepStatus("idle");
       }
     },
-    [address, creditLineAddress, config, writeContractAsync],
+    [decimals, isDecimalsLoading, config, writeContractAsync],
   );
 
   return {

@@ -6,7 +6,9 @@
     "build": "hardhat compile",
     "test": "hardhat test",
     "clean": "hardhat clean",
-    "deploy": "hardhat run scripts/deploy.ts"
+    "deploy": "hardhat run scripts/deploy.ts",
+    "deploy:ignition": "hardhat ignition deploy ./ignition/modules/CredditProtocol.ts --network localhost",
+    "upgrade:ignition": "hardhat ignition deploy ./ignition/modules/CredditOracleUpgrade.ts --network localhost"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.15",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useListAssets } from "./contracts";
 import { bpsToRawPercent } from "@/lib/utils";
 import { Address, erc20Abi, formatUnits } from "viem";
@@ -12,10 +12,13 @@ import {
 import { credditOracleAbi } from "@/contracts/abis/credditOracleAbi";
 import { IAsset } from "@/interfaces/asset.interface";
 
-function useAsset() {
+export function useAsset() {
   const { address } = useConnection();
   const [selectedAsset, setSelectedAsset] = useState<IAsset | undefined>();
   const [assets, setAssets] = useState<IAsset[]>([]);
+  
+  // Track if user explicitly picked an asset so we don't overwrite their pick
+  const isUserSelectedRef = useRef(false);
 
   const { data: rawAssets, isLoading: isRawListLoading } = useListAssets(true);
 
@@ -43,7 +46,7 @@ function useAsset() {
   // Map static symbols to assets ONLY once symbolsData is actually present
   const staticAssets = useMemo(() => {
     if (!rawAssets || !symbolsData || symbolsData.length === 0) return [];
-    
+
     return rawAssets.map((asset, index) => {
       const symResult = symbolsData?.[index]?.result;
       return {
@@ -88,10 +91,17 @@ function useAsset() {
   });
 
   // -------------------------------------------------------------------------
+  // Wrapper for setSelectedAsset to track manual user selection
+  // -------------------------------------------------------------------------
+  const handleSelectAsset = (asset: IAsset | undefined) => {
+    isUserSelectedRef.current = true;
+    setSelectedAsset(asset);
+  };
+
+  // -------------------------------------------------------------------------
   // 3. COMBINE STATIC & DYNAMIC DATA INTO FINAL STATE
   // -------------------------------------------------------------------------
   useEffect(() => {
-    // Only process if we have valid static assets with resolved symbols
     if (staticAssets.length > 0 && staticAssets.every((a) => a.symbol !== "")) {
       const mapRawAssets: IAsset[] = staticAssets.map((asset, index) => {
         const balanceCall = dynamicData?.[index * 2];
@@ -128,12 +138,30 @@ function useAsset() {
       setAssets(mapRawAssets);
 
       if (mapRawAssets.length > 0) {
-        setSelectedAsset((prev) =>
-          prev
-            ? (mapRawAssets.find((a) => a.token === prev.token) ??
-              mapRawAssets[0])
-            : mapRawAssets[0],
-        );
+        // Calculate highest total USD value
+        const highestValuedAsset = mapRawAssets.reduce((highest, current) => {
+          const highestVal =
+            parseFloat(highest.balanceFormatted || "0") *
+            parseFloat(highest.usdPrice || "0");
+
+          const currentVal =
+            parseFloat(current.balanceFormatted || "0") *
+            parseFloat(current.usdPrice || "0");
+
+          return currentVal > highestVal ? current : highest;
+        }, mapRawAssets[0]);
+
+        // Auto-select rules:
+        // 1. If user manually selected an asset, maintain their selection.
+        // 2. If data hasn't loaded dynamic balances yet, pick highest valued (or first).
+        // 3. If dynamicData has arrived and user hasn't manually selected, set the highest valued asset.
+        if (isUserSelectedRef.current) {
+          setSelectedAsset(
+            (prev) => mapRawAssets.find((a) => a.token === prev?.token) ?? highestValuedAsset
+          );
+        } else {
+          setSelectedAsset(highestValuedAsset);
+        }
       }
     }
   }, [staticAssets, dynamicData]);
@@ -141,10 +169,8 @@ function useAsset() {
   return {
     assets,
     selectedAsset,
-    setSelectedAsset,
+    setSelectedAsset: handleSelectAsset,
     isListLoading,
     isDynamicLoading,
   };
 }
-
-export default useAsset;

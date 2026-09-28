@@ -143,12 +143,15 @@ contract CredditAssetRegistry is CredditCore {
 
         if (token == address(0)) revert ZeroAddressProvided();
         if (assetConfig[token].isListed) revert AssetAlreadyListed(token);
+
         _validateRiskParams(
             collateralFactorBps,
             liquidationThresholdBps,
             liquidationPenaltyBps,
             liquidationBonusBps
         );
+
+        bool isNewAsset = assetConfig[token].token == address(0);
 
         assetConfig[token] = AssetConfig(
             token,
@@ -161,7 +164,10 @@ contract CredditAssetRegistry is CredditCore {
             true,
             true
         );
-        _assets.push(token);
+
+        if (isNewAsset) {
+            _assets.push(token);
+        }
 
         emit AssetAdded(
             token,

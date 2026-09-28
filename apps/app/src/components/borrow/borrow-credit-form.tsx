@@ -8,6 +8,7 @@ import { Controller, useForm } from "react-hook-form";
 import { formatCurrency } from "@/lib/utils";
 import { IAsset } from "@/interfaces/asset.interface";
 import { Input } from "../ui/input";
+import { CurrencyInputField } from "../ui/currency-input";
 
 const MAX_LTV = 0.65;
 
@@ -131,22 +132,16 @@ export default function BorrowCreditForm({
             <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
               <div>
                 <p className="text-sm text-foreground/50">USDG credit amount</p>
-
-                <Controller
-                  control={control}
-                  render={({ field: { onChange, value } }) => (
-                    <div className="mt-2 flex items-baseline gap-2">
-                      <p className="text-5xl md:text-6xl">$</p>
-                      <Input
-                        className="h-16 -ml-2 rounded-none focus-visible:ring-0 border-0 shadow-none bg-transparent px-0 font-heading text-5xl font-normal tracking-tight md:text-6xl"
-                        placeholder={formatCurrency(potentialCredit, false)}
-                        value={formatCurrency(value, false)}
-                        onChange={onChange}
-                      />
-                    </div>
-                  )}
-                  name="amount"
-                />
+                <div className="mt-2 flex items-baseline gap-2">
+                  <p className="text-5xl md:text-6xl">$</p>
+   
+                  <CurrencyInputField
+                    control={control}
+                    name="amount"
+                    placeholder={formatCurrency(potentialCredit, false)}
+                    className="h-16 -ml-2 rounded-none focus-visible:ring-0 border-0 shadow-none bg-transparent px-0 font-heading text-5xl font-normal tracking-tight md:text-6xl"
+                  />
+                </div>
 
                 <p className="mt-3 max-w-sm text-sm leading-6 text-foreground/50">
                   The total amount of USDG to be borrowed against your unified

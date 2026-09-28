@@ -1,15 +1,23 @@
 import { Address } from "viem";
+import { hardhat, robinhoodTestnet } from "viem/chains";
 
 export const ASSET_REGISTRY_ADDRESS: Address =
   "0x851356ae760d987E095750cCeb3bC6014560891C";
 
 enum Contracts {
+  /**
+   *  PROTOCOL CONTRACTS
+   */
   REGISTRY = "REGISTRY",
   ORACLE = "ORACLE",
   CREDIT_LINE = "CREDIT_LINE",
   RISK_ENGINE = "RISK_ENGINE",
-  USDG_TOKEN = "USDG_TOKEN",
   LIQUIDITY_POOL = "LIQUIDITY_POOL",
+
+  /**
+   * PROTOCOL TOKENS
+   */
+  USDG = "USDG",
 }
 
 export const ORACLE_PRICE_DECIMALS = 18;
@@ -18,10 +26,15 @@ export const TOKEN_DECIMALS = {
 };
 
 export const CREDDIT_PROTOCOL_ADDRESSES: Record<Contracts, Address> = {
-  [Contracts.REGISTRY]: "0x3347B4d90ebe72BeFb30444C9966B2B990aE9FcB",
-  [Contracts.ORACLE]: "0xfaAddC93baf78e89DCf37bA67943E1bE8F37Bb8c",
-  [Contracts.CREDIT_LINE]: "0xB0f05d25e41FbC2b52013099ED9616f1206Ae21B",
-  [Contracts.RISK_ENGINE]: "0x99dBE4AEa58E518C50a1c04aE9b48C9F6354612f",
-  [Contracts.USDG_TOKEN]: "0x4b6aB5F819A515382B0dEB6935D793817bB4af28",
-  [Contracts.LIQUIDITY_POOL]: "0xd6e1afe5cA8D00A2EFC01B89997abE2De47fdfAf",
+  [Contracts.REGISTRY]: "0x95401dc811bb5740090279Ba06cfA8fcF6113778",
+  [Contracts.ORACLE]: "0x851356ae760d987E095750cCeb3bC6014560891C",
+  [Contracts.CREDIT_LINE]: "0xcbEAF3BDe82155F56486Fb5a1072cb8baAf547cc",
+  [Contracts.RISK_ENGINE]: "0x7bc06c482DEAd17c0e297aFbC32f6e63d3846650",
+  [Contracts.LIQUIDITY_POOL]: "0x7969c5eD335650692Bc04293B07F5BF2e7A673C0",
+  [Contracts.USDG]: "0x4A679253410272dd5232B3Ff7cF5dbB88f295319",
+};
+
+export const CREDDIT_ADDRESSES: Record<number, Record<Contracts, Address>> = {
+  [hardhat.id]: CREDDIT_PROTOCOL_ADDRESSES,
+  [robinhoodTestnet.id]: CREDDIT_PROTOCOL_ADDRESSES
 };

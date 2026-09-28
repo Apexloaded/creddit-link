@@ -9,6 +9,10 @@ import {ZeroAddressProvided, ZeroAmount} from "./CredditErrors.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {ILendingAdapter} from "../interfaces/ILendingAdapter.sol";
 import {WadMath} from "../libraries/WadMath.sol";
+import {
+    IERC20Metadata
+} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+
 
 /// @notice Custom Errors for the CredditLendingRouter contract
 error InvalidCreditLine();
@@ -503,15 +507,18 @@ contract CredditLendingRouter is CredditCore {
         uint256 take
     ) private view returns (bool ok, uint256 rateWad, uint256 feeWad) {
         uint256 rateBps;
-        (ok, rateBps, feeWad) = _probe(
+        uint256 fee;
+        (ok, rateBps, fee) = _probe(
             adapter,
             abi.encodeCall(ILendingAdapter.quoteBorrow, ()),
             2
         );
         // Reject absurd rates and fees exceeding the borrowed slice
-        if (!ok || rateBps > MAX_RATE_BPS || feeWad > take)
-            return (false, 0, 0);
+        if (!ok || rateBps > MAX_RATE_BPS || fee > take) return (false, 0, 0);
         rateWad = WadMath.bpsToWad(rateBps);
+
+        uint8 decimals = IERC20Metadata(address(usdg)).decimals();
+        feeWad = fee.toWad(decimals);
     }
 
     /// @dev Insertion sort (stable) by effectiveRateWad ascending.

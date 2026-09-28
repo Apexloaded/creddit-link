@@ -104,25 +104,29 @@ export function bpsToRawPercent(bps: number | bigint): number {
  * @returns Formatted currency string (e.g., "₦1,000,000.00" or "1M")
  */
 export function formatCurrency(
-  value: string | number,
+  value: string | number | null | undefined,
   includeSymbol: boolean = true,
   shorten: boolean = false,
 ) {
-  const cleanInp = value.toString().replace(/(,)/g, "");
-  if (cleanInp.length < 1) return "";
-  const numValue = Number(cleanInp);
+  if (value === null || value === undefined || value === "") return "";
 
-  // Truncate (not round) to a fixed number of decimal places,
-  // avoiding floating-point drift from raw multiplication.
+  // 1. Clean the price first (removes commas, normalizes European decimals)
+  const cleaned = cleanPrice(value);
+
+  // 2. Return empty string if input contains no digits or is just a trailing dot (e.g. "100.")
+  if (!cleaned || cleaned === ".") return "";
+
+  const numValue = Number(cleaned);
+
+  // 3. Safety check against invalid input
+  if (isNaN(numValue)) return "";
+
   const truncateToDecimals = (num: number, decimals: number = 2) => {
     const factor = Math.pow(10, decimals);
-    // Round to a safe number of digits first to kill float noise,
-    // then truncate down to the target decimal count.
-    const safe = Math.round(num * factor * 1000) / 1000; // fix float noise
+    const safe = Math.round(num * factor * 1000) / 1000;
     return Math.trunc(safe) / factor;
   };
 
-  // Shorten value to 'k', 'M', 'B', 'T' etc., if needed
   let formattedValue = "";
 
   if (shorten) {
@@ -191,21 +195,105 @@ export function cleanPrice(
 ): string {
   if (input === null || input === undefined) return "";
 
-  const strInput = String(input);
+  let strInput = String(input).trim();
 
-  if (allowDecimal) {
-    // 1. Replace commas with dots if used as European decimal separators (e.g., "1.234,50" -> "1234.50")
-    // 2. Remove all non-digits and non-dots
-    // 3. Keep only the first dot if multiple dots exist
-    const cleaned = strInput.replace(/,/g, ".").replace(/[^0-9.]/g, "");
-
-    const parts = cleaned.split(".");
-    if (parts.length > 2) {
-      return `${parts[0]}.${parts.slice(1).join("")}`;
-    }
-    return cleaned;
+  if (!allowDecimal) {
+    return strInput.replace(/\D/g, "");
   }
 
-  // Pure digits only
-  return strInput.replace(/\D/g, "");
+  // 1. Detect European format (e.g. "1.234,56" or "1000,50") where comma is the decimal
+  // If there's a comma near the end followed by 1 or 2 digits, treat comma as decimal dot.
+  const isEuropeanDecimal = /,\d{1,2}$/.test(strInput);
+
+  if (isEuropeanDecimal) {
+    // Strip thousands dots (1.234,50 -> 1234,50) then normalize comma to dot
+    strInput = strInput.replace(/\./g, "").replace(",", ".");
+  } else {
+    // Standard US format (10,000.00 -> 10000.00): strip thousands commas
+    strInput = strInput.replace(/,/g, "");
+  }
+
+  // 2. Keep only digits and dots
+  const cleaned = strInput.replace(/[^0-9.]/g, "");
+
+  // 3. Keep only the first dot if multiple dots exist (e.g. typing "10..5")
+  const parts = cleaned.split(".");
+  if (parts.length > 2) {
+    return `${parts[0]}.${parts.slice(1).join("")}`;
+  }
+
+  return cleaned;
+}
+
+export function truncateForMaxDecimals(
+  clean: string,
+  maxDecimals: number,
+): string {
+  if (!clean.includes(".")) return clean;
+  const [intPart, decPart] = clean.split(".");
+  return `${intPart}.${decPart.slice(0, maxDecimals)}`;
+}
+
+export function anchorsBeforeCaret(str: string, caret: number): number {
+  let count = 0;
+  for (let i = 0; i < caret && i < str.length; i++) {
+    if (/[\d.]/.test(str[i])) count++;
+  }
+  return count;
+}
+
+export function caretAfterAnchors(str: string, anchorCount: number): number {
+  if (anchorCount <= 0) return 0;
+  let count = 0;
+  for (let i = 0; i < str.length; i++) {
+    if (/[\d.]/.test(str[i])) {
+      count++;
+      if (count === anchorCount) return i + 1;
+    }
+  }
+  return str.length;
+}
+
+export function cleanNumericInput(
+  value: string | number | null | undefined,
+): string {
+  if (value === null || value === undefined) return "";
+  let str = String(value).trim();
+  if (str === "") return "";
+
+  str = str.replace(/,/g, "").replace(/[^\d.]/g, "");
+  if (str === "") return "";
+
+  const parts = str.split(".");
+  if (parts.length > 2) str = `${parts[0]}.${parts.slice(1).join("")}`;
+
+  const [intRaw, decRaw] = str.split(".");
+  let intPart = intRaw.replace(/^0+(?=\d)/, "");
+
+  // Always normalize an empty integer part to "0" when a decimal exists —
+  // keeps the stored value schema/contract-safe ("0.5", never ".5").
+  if (decRaw !== undefined && intPart === "") intPart = "0";
+  else if (intPart === "") intPart = str.startsWith("0") ? "0" : "";
+
+  return decRaw !== undefined ? `${intPart}.${decRaw}` : intPart;
+}
+
+export function formatNumericInput(
+  value: string | number | null | undefined,
+  maxDecimals?: number,
+): string {
+  let clean = cleanNumericInput(value);
+  if (clean === "") return "";
+
+  if (maxDecimals !== undefined && clean.includes(".")) {
+    const [i, d] = clean.split(".");
+    clean = `${i}.${d.slice(0, maxDecimals)}`;
+  }
+
+  const hasTrailingDot = clean.endsWith(".");
+  const [intPart, decPart] = clean.split(".");
+  const formattedInt = (intPart || "0").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+  if (decPart !== undefined) return `${formattedInt}.${decPart}`;
+  return hasTrailingDot ? `${formattedInt}.` : formattedInt;
 }

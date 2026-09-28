@@ -7,25 +7,30 @@ import {
   useContext,
   useMemo,
 } from "react";
-import { useStorage } from "@/hooks/use-storage";
 import { StorageKey } from "@/config/storage.config";
-import useAsset from "@/hooks/use-asset";
 import { IAsset } from "@/interfaces/asset.interface";
 import {
   CollateralPosition,
   useCollateralOf,
 } from "@/hooks/contracts/use-collateral";
+import { useErc20Details, useStorage, useAsset } from "@/hooks";
+import { CREDDIT_ADDRESSES } from "@/config/contract.config";
 
 type AppState = {
   chain: number;
   setChain: (chainId: number) => void;
   assets: IAsset[];
   selectedAsset: IAsset | undefined;
-  setSelectedAsset: Dispatch<SetStateAction<IAsset | undefined>>;
+  setSelectedAsset: (value: IAsset | undefined) => void;
   positions: CollateralPosition[];
   totalPositionValueUsd: string;
   isListLoading: boolean;
   isDynamicLoading: boolean;
+  usdgBalance: bigint;
+  usdgUnitBalance: string;
+  usdgAllowance: bigint;
+  isUsdgLoading: boolean;
+  refetchUsdg: () => void;
 };
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -40,6 +45,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     isDynamicLoading = false,
   } = useAsset();
   const { positions, totalUsdValue } = useCollateralOf(assets);
+  const {
+    balance: usdgBalance,
+    allowance: usdgAllowance,
+    isLoading: isUsdgLoading,
+    refetch: refetchUsdg,
+    unitBalance: usdgUnitBalance
+  } = useErc20Details(
+    CREDDIT_ADDRESSES[chain]?.USDG,
+    CREDDIT_ADDRESSES[chain]?.LIQUIDITY_POOL
+  );
 
   const contextValue = useMemo(
     () => ({
@@ -52,6 +67,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       totalPositionValueUsd: totalUsdValue,
       isListLoading,
       isDynamicLoading,
+      usdgBalance,
+      usdgUnitBalance,
+      usdgAllowance,
+      isUsdgLoading,
+      refetchUsdg,
     }),
     [
       chain,
@@ -63,6 +83,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       totalUsdValue,
       isListLoading,
       isDynamicLoading,
+      usdgBalance,
+      usdgUnitBalance,
+      usdgAllowance,
+      isUsdgLoading,
+      refetchUsdg,
     ],
   );
 

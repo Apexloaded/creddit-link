@@ -1,3 +1,5 @@
+import { hardhat } from "viem/chains";
+
 const required = (name: string) => {
   if (!process.env[name]) {
     throw new Error(`Missing required environment variable: ${name}`);
@@ -24,7 +26,7 @@ const envDefaults = {
   app: {
     name: "Creddit Link",
     hostname: undefined,
-    defaultChain: 46630,
+    defaultChain: hardhat.id,
   },
   walletConnect: {
     projectId: "6a034e0c62ffce25a8871e9f767b4a57",

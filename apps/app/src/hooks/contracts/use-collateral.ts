@@ -1,8 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { CREDDIT_PROTOCOL_ADDRESSES, ORACLE_PRICE_DECIMALS } from "@/config/contract.config";
-import { creditLineAbi } from "@/contracts/abis/creditLineAbi";
+import {
+  CREDDIT_PROTOCOL_ADDRESSES,
+  ORACLE_PRICE_DECIMALS,
+} from "@/config/contract.config";
+import { credditCreditLineAbi } from "@/contracts/abis/credditCreditLineAbi";
 import { Address, formatUnits } from "viem";
 import { useReadContracts, useConnection } from "wagmi";
 import { credditOracleAbi } from "@/contracts/abis/credditOracleAbi";
@@ -31,7 +34,7 @@ export function useCollateralOf(assets: IAsset[]) {
     return assets.flatMap((asset) => [
       {
         address: CREDIT_LINE_ADDRESS,
-        abi: creditLineAbi,
+        abi: credditCreditLineAbi,
         functionName: "collateralOf" as const,
         args: [userAddress, asset.token] as const,
       },

@@ -31,7 +31,7 @@ export default function BorrowCreditModal() {
   const getButtonText = () => {
     if (stepStatus === "borrowing") return "1/1 Borrowing...";
     if (isListLoading) return "Loading...";
-    return "Deposit";
+    return "Borrow";
   };
 
   const onBorrow = (data: BorrowSchemaType) => {

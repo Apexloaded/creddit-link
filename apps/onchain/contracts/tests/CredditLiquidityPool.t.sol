@@ -12,6 +12,7 @@ import {CredditInterestRateModel} from "../core/CredditInterestRateModel.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {ZeroAddressProvided} from "../core/CredditErrors.sol";
 import {MockERC20} from "../mock/MockERC20.sol";
+import {CredditTreasury} from "../core/CredditTreasury.sol";
 
 contract CredditLiquidityPoolTest is Test {
     CredditLiquidityPool public pool;
@@ -19,6 +20,7 @@ contract CredditLiquidityPoolTest is Test {
     CredditInterestRateModel public rateModel;
     CredditInterestRateModel public rateModelImpl;
     MockERC20 public assetToken;
+    CredditTreasury public treasury;
 
     address public admin = address(0x1);
     address public router = address(0x2);
@@ -70,7 +72,8 @@ contract CredditLiquidityPoolTest is Test {
                 "Creddit Vault USDG",
                 "cUSDG",
                 admin,
-                address(rateModel)
+                address(rateModel),
+                payable(treasury)
             )
         );
         ERC1967Proxy poolProxy = new ERC1967Proxy(
@@ -117,7 +120,8 @@ contract CredditLiquidityPoolTest is Test {
                 "Creddit Vault USDG",
                 "cUSDG",
                 admin,
-                address(rateModel)
+                address(rateModel),
+                payable(treasury)
             )
         );
         vm.expectRevert(ZeroAddressProvided.selector);

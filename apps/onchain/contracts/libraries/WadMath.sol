@@ -34,9 +34,26 @@ library WadMath {
         return Math.mulDiv(x, WAD, y, Math.Rounding.Ceil);
     }
 
+    /// @dev Computes (x * y * scalar) / (denominator * WAD), rounded UP.
+    /// Preserves full precision when scaling a WAD product against an arbitrary base denominator.
+    function wadMulDivUp(
+        uint256 x,
+        uint256 y,
+        uint256 scalar,
+        uint256 denominator
+    ) internal pure returns (uint256) {
+        return
+            Math.mulDiv(x * y, scalar, denominator * WAD, Math.Rounding.Ceil);
+    }
+
     /// @dev Converts a basis-points value (0-10000+) to a WAD fraction.
     function bpsToWad(uint256 bps) internal pure returns (uint256) {
         return (bps * WAD) / MAX_BPS;
+    }
+
+    /// @dev Converts a WAD fraction (1e18 scale) to basis points (0-10000+), rounded down.
+    function wadToBpsDown(uint256 wad) internal pure returns (uint256) {
+        return Math.mulDiv(wad, MAX_BPS, WAD, Math.Rounding.Floor);
     }
 
     /// @dev Scales `amount` (given in `fromDecimals`) to WAD (18 decimals),
