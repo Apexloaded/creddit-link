@@ -991,6 +991,11 @@ export const credditLiquidityPoolAbi = [
         name: "rateModel_",
         type: "address",
       },
+      {
+        internalType: "address payable",
+        name: "_treasury",
+        type: "address",
+      },
     ],
     name: "initialize",
     outputs: [],
@@ -1440,6 +1445,19 @@ export const credditLiquidityPoolAbi = [
   {
     inputs: [
       {
+        internalType: "address payable",
+        name: "newTreasury",
+        type: "address",
+      },
+    ],
+    name: "setTreasury",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "bytes4",
         name: "interfaceId",
         type: "bytes4",
@@ -1572,6 +1590,19 @@ export const credditLiquidityPoolAbi = [
     name: "transferOwnership",
     outputs: [],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "treasury",
+    outputs: [
+      {
+        internalType: "contract CredditTreasury",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
   {

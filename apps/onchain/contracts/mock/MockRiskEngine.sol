@@ -24,10 +24,10 @@ contract MockRiskEngine {
     // Internal mock state — controlled by test helpers
     // ---------------------------------------------------------------------------
 
-    mapping(address => uint256) public mockCreditLimits;
-    mapping(address => bool) public mockLiquidatable;
-    mapping(address => uint256) public mockRiskAdjustedValues;
-    mapping(address => uint256) public mockLiquidationValues;
+    mapping(uint256 => uint256) public mockCreditLimits;
+    mapping(uint256 => bool) public mockLiquidatable;
+    mapping(uint256 => uint256) public mockRiskAdjustedValues;
+    mapping(uint256 => uint256) public mockLiquidationValues;
 
     // ---------------------------------------------------------------------------
     // Test helpers — setters for mock state
@@ -45,20 +45,20 @@ contract MockRiskEngine {
         liquidationCloseFactorWad = closeFactorWad;
     }
 
-    function setCreditLimit(address user, uint256 limitWad) external {
-        mockCreditLimits[user] = limitWad;
+    function setCreditLimit(uint256 positionId, uint256 limitWad) external {
+        mockCreditLimits[positionId] = limitWad;
     }
 
-    function setIsLiquidatable(address user, bool status) external {
-        mockLiquidatable[user] = status;
+    function setIsLiquidatable(uint256 positionId, bool status) external {
+        mockLiquidatable[positionId] = status;
     }
 
-    function setRiskAdjustedValue(address user, uint256 val) external {
-        mockRiskAdjustedValues[user] = val;
+    function setRiskAdjustedValue(uint256 positionId, uint256 val) external {
+        mockRiskAdjustedValues[positionId] = val;
     }
 
-    function setLiquidationValue(address user, uint256 val) external {
-        mockLiquidationValues[user] = val;
+    function setLiquidationValue(uint256 positionId, uint256 val) external {
+        mockLiquidationValues[positionId] = val;
     }
 
     // ---------------------------------------------------------------------------
@@ -67,48 +67,48 @@ contract MockRiskEngine {
 
     /// @notice Returns the pre-configured credit limit for a user.
     /// @param source Unused in mock — present to match CredditRiskEngine signature.
-    /// @param user The user whose credit limit is queried.
+    /// @param positionId The user whose credit limit is queried.
     function creditLimit(
         address source,
-        address user
+        uint256 positionId
     ) external view returns (uint256) {
         source; // silence unused-var warning
-        return mockCreditLimits[user];
+        return mockCreditLimits[positionId];
     }
 
     /// @notice Returns the pre-configured risk-adjusted collateral value for a user.
     /// @param source Unused in mock — present to match CredditRiskEngine signature.
-    /// @param user The user whose risk-adjusted value is queried.
+    /// @param positionId The user whose risk-adjusted value is queried.
     function riskAdjustedValue(
         address source,
-        address user
+        uint256 positionId
     ) external view returns (uint256) {
         source; // silence unused-var warning
-        return mockRiskAdjustedValues[user];
+        return mockRiskAdjustedValues[positionId];
     }
 
     /// @notice Returns the pre-configured liquidation value for a user.
     /// @param source Unused in mock — present to match CredditRiskEngine signature.
-    /// @param user The user whose liquidation value is queried.
+    /// @param positionId The user whose liquidation value is queried.
     function liquidationValue(
         address source,
-        address user
+        uint256 positionId
     ) external view returns (uint256) {
         source; // silence unused-var warning
-        return mockLiquidationValues[user];
+        return mockLiquidationValues[positionId];
     }
 
     /// @notice Returns the pre-configured liquidatability flag for a user.
     /// @param source Unused in mock — present to match CredditRiskEngine signature.
-    /// @param user The user being evaluated.
+    /// @param positionId The user being evaluated.
     /// @param debt Unused in mock — present to match CredditRiskEngine signature.
     function isLiquidatable(
         address source,
-        address user,
+        uint256 positionId,
         uint256 debt
     ) external view returns (bool) {
         source; // silence unused-var warning
         debt; // silence unused-var warning
-        return mockLiquidatable[user];
+        return mockLiquidatable[positionId];
     }
 }

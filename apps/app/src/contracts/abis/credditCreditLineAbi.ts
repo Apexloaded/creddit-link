@@ -45,22 +45,6 @@ export const credditCreditLineAbi = [
   {
     inputs: [
       {
-        internalType: "uint256",
-        name: "debtToCover",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "maxRepay",
-        type: "uint256",
-      },
-    ],
-    name: "CloseFactorExceeded",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
         internalType: "address",
         name: "implementation",
         type: "address",
@@ -176,9 +160,9 @@ export const credditCreditLineAbi = [
   {
     inputs: [
       {
-        internalType: "address",
-        name: "user",
-        type: "address",
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
       },
     ],
     name: "NoActiveDebt",
@@ -187,6 +171,22 @@ export const credditCreditLineAbi = [
   {
     inputs: [],
     name: "NotInitializing",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+      {
+        internalType: "address",
+        name: "caller",
+        type: "address",
+      },
+    ],
+    name: "NotPositionOwner",
     type: "error",
   },
   {
@@ -214,9 +214,20 @@ export const credditCreditLineAbi = [
   {
     inputs: [
       {
-        internalType: "address",
-        name: "user",
-        type: "address",
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+    ],
+    name: "PositionDoesNotExist",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
       },
       {
         internalType: "uint256",
@@ -300,6 +311,12 @@ export const credditCreditLineAbi = [
     inputs: [
       {
         indexed: true,
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
         internalType: "address",
         name: "user",
         type: "address",
@@ -323,12 +340,18 @@ export const credditCreditLineAbi = [
         type: "uint256",
       },
     ],
-    name: "Borrowed",
+    name: "BorrowedEvent",
     type: "event",
   },
   {
     anonymous: false,
     inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
       {
         indexed: true,
         internalType: "address",
@@ -348,12 +371,18 @@ export const credditCreditLineAbi = [
         type: "uint256",
       },
     ],
-    name: "CollateralDeposited",
+    name: "CollateralDepositedEvent",
     type: "event",
   },
   {
     anonymous: false,
     inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
       {
         indexed: true,
         internalType: "address",
@@ -373,7 +402,7 @@ export const credditCreditLineAbi = [
         type: "uint256",
       },
     ],
-    name: "CollateralWithdrawn",
+    name: "CollateralWithdrawnEvent",
     type: "event",
   },
   {
@@ -398,7 +427,7 @@ export const credditCreditLineAbi = [
         type: "uint256",
       },
     ],
-    name: "DebtInterestAccrued",
+    name: "DebtInterestAccruedEvent",
     type: "event",
   },
   {
@@ -419,6 +448,12 @@ export const credditCreditLineAbi = [
     inputs: [
       {
         indexed: true,
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
         internalType: "address",
         name: "liquidator",
         type: "address",
@@ -430,7 +465,7 @@ export const credditCreditLineAbi = [
         type: "address",
       },
       {
-        indexed: true,
+        indexed: false,
         internalType: "address",
         name: "collateralAsset",
         type: "address",
@@ -448,7 +483,7 @@ export const credditCreditLineAbi = [
         type: "uint256",
       },
     ],
-    name: "Liquidated",
+    name: "LiquidatedEvent",
     type: "event",
   },
   {
@@ -488,6 +523,56 @@ export const credditCreditLineAbi = [
     inputs: [
       {
         indexed: true,
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "timestamp",
+        type: "uint256",
+      },
+    ],
+    name: "PositionClosedEvent",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+    ],
+    name: "PositionOpenedEvent",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
         internalType: "address",
         name: "payer",
         type: "address",
@@ -517,7 +602,7 @@ export const credditCreditLineAbi = [
         type: "uint256",
       },
     ],
-    name: "Repaid",
+    name: "RepaidEvent",
     type: "event",
   },
   {
@@ -689,6 +774,11 @@ export const credditCreditLineAbi = [
     inputs: [
       {
         internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
         name: "amount",
         type: "uint256",
       },
@@ -701,9 +791,9 @@ export const credditCreditLineAbi = [
   {
     inputs: [
       {
-        internalType: "address",
-        name: "user",
-        type: "address",
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
       },
       {
         internalType: "address",
@@ -738,9 +828,9 @@ export const credditCreditLineAbi = [
   {
     inputs: [
       {
-        internalType: "address",
+        internalType: "uint256",
         name: "",
-        type: "address",
+        type: "uint256",
       },
     ],
     name: "debtShares",
@@ -756,6 +846,11 @@ export const credditCreditLineAbi = [
   },
   {
     inputs: [
+      {
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
       {
         internalType: "address",
         name: "asset",
@@ -775,6 +870,44 @@ export const credditCreditLineAbi = [
   {
     inputs: [
       {
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+    ],
+    name: "getPositionAssets",
+    outputs: [
+      {
+        internalType: "address[]",
+        name: "",
+        type: "address[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+    ],
+    name: "getPositionOwner",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "bytes32",
         name: "role",
         type: "bytes32",
@@ -786,6 +919,25 @@ export const credditCreditLineAbi = [
         internalType: "bytes32",
         name: "",
         type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+    ],
+    name: "getUserPositions",
+    outputs: [
+      {
+        internalType: "uint256[]",
+        name: "",
+        type: "uint256[]",
       },
     ],
     stateMutability: "view",
@@ -892,13 +1044,13 @@ export const credditCreditLineAbi = [
   {
     inputs: [
       {
-        internalType: "address",
-        name: "borrower",
-        type: "address",
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
       },
       {
         internalType: "address",
-        name: "debtAsset",
+        name: "collateralAsset",
         type: "address",
       },
       {
@@ -909,6 +1061,56 @@ export const credditCreditLineAbi = [
     ],
     name: "liquidate",
     outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "nextPositionId",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "openPosition",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "asset",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "openPositionAndDeposit",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+    ],
     stateMutability: "nonpayable",
     type: "function",
   },
@@ -953,6 +1155,122 @@ export const credditCreditLineAbi = [
         internalType: "bool",
         name: "",
         type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    name: "positionCollateralBalance",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+    ],
+    name: "positionDebt",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+    ],
+    name: "positionRiskAdjustedValue",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    name: "positions",
+    outputs: [
+      {
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+      {
+        internalType: "bool",
+        name: "isClosed",
+        type: "bool",
+      },
+      {
+        internalType: "bool",
+        name: "isLiquidated",
+        type: "bool",
+      },
+      {
+        internalType: "uint256",
+        name: "cumulativeBorrowed",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "cumulativeRepaid",
+        type: "uint256",
+      },
+      {
+        internalType: "uint64",
+        name: "liquidatedAt",
+        type: "uint64",
+      },
+      {
+        internalType: "uint64",
+        name: "openedAt",
+        type: "uint64",
+      },
+      {
+        internalType: "uint64",
+        name: "closedAt",
+        type: "uint64",
       },
     ],
     stateMutability: "view",
@@ -1013,21 +1331,8 @@ export const credditCreditLineAbi = [
     inputs: [
       {
         internalType: "uint256",
-        name: "amount",
+        name: "positionId",
         type: "uint256",
-      },
-    ],
-    name: "repay",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "user",
-        type: "address",
       },
       {
         internalType: "uint256",
@@ -1035,7 +1340,7 @@ export const credditCreditLineAbi = [
         type: "uint256",
       },
     ],
-    name: "repayFor",
+    name: "repay",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -1215,67 +1520,10 @@ export const credditCreditLineAbi = [
   {
     inputs: [
       {
-        internalType: "address",
-        name: "",
-        type: "address",
-      },
-      {
-        internalType: "address",
-        name: "",
-        type: "address",
-      },
-    ],
-    name: "userCollateralBalance",
-    outputs: [
-      {
         internalType: "uint256",
-        name: "",
+        name: "positionId",
         type: "uint256",
       },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-    ],
-    name: "userDebt",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-    ],
-    name: "userRiskAdjustedValue",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
       {
         internalType: "address",
         name: "asset",

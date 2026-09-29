@@ -1,14 +1,12 @@
-import { ICreditLimit } from "@/interfaces/credit-limit.interface";
+import { IPortfolio } from "@/interfaces/creddit-lens.interface";
 import { formatCurrency } from "@/lib/utils";
-import { ArrowUpRight, Wallet } from "lucide-react";
+import { Wallet } from "lucide-react";
 
 type Props = {
-  userShares: string;
-  balance: string;
+  portfolio?: IPortfolio;
 };
 
-export function BalanceOverview({ balance, userShares }: Props) {
-  const total = parseFloat(balance) + parseFloat(userShares);
+export function BalanceOverview({ portfolio }: Props) {
   return (
     <section className="border lg:border-r-0 border-foreground/10 bg-background p-6">
       <div className="flex items-start justify-between">
@@ -17,7 +15,7 @@ export function BalanceOverview({ balance, userShares }: Props) {
 
           <div className="mt-4 flex items-end gap-2">
             <h2 className="font-serif text-3xl tracking-tight text-foreground">
-              {formatCurrency(total)}
+              {formatCurrency(portfolio?.collateralUsd.formatted)}
             </h2>
           </div>
         </div>
@@ -31,14 +29,14 @@ export function BalanceOverview({ balance, userShares }: Props) {
         <div className="flex items-center justify-between">
           <span className="text-sm text-foreground/80">Collateral</span>
           <span className="text-sm font-medium text-foreground">
-            {formatCurrency(balance)}
+            {formatCurrency(portfolio?.collateralUsd.formatted)}
           </span>
         </div>
 
         <div className="flex items-center justify-between">
           <span className="text-sm text-foreground/80">USDG Pool</span>
           <span className="text-sm font-medium text-foreground">
-            {formatCurrency(userShares)}
+            {formatCurrency(portfolio?.liquidityBalance.formatted)}
           </span>
         </div>
       </div>

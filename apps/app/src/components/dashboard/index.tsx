@@ -1,26 +1,21 @@
 "use client";
 
-import React from "react";
 import { BalanceOverview } from "@/components/dashboard/balance-overview";
 import { CreditOverview } from "@/components/dashboard/credit-overview";
 import { PositionHealthCard } from "@/components/dashboard/position-health";
-import { useApp } from "@/context/app.context";
-import { useCreditLimit } from "@/hooks/contracts/use-credit-line";
+import { useCreddit } from "@/context/creddit.context";
 import { useLiquidityPoolData } from "@/hooks/contracts/use-liquidity-pool";
 
 function Dashboard() {
-  const { assets, totalPositionValueUsd, positions } = useApp();
+  const { assets, portfolio, isLoadingPortfolio, positions } = useCreddit();
   const { formattedShare } = useLiquidityPoolData();
-  const { creditLimit, isLoading } = useCreditLimit();
-  console.log(creditLimit);
+  console.log(portfolio);
+
   return (
     <div className="grid mt-10 lg:grid-cols-3">
-      <BalanceOverview
-        userShares={formattedShare}
-        balance={totalPositionValueUsd}
-      />
-      <CreditOverview creditLimit={creditLimit} isLoading={isLoading} />
-      <PositionHealthCard />
+      <BalanceOverview portfolio={portfolio} />
+      <CreditOverview portfolio={portfolio} isLoading={isLoadingPortfolio} />
+      <PositionHealthCard portfolio={portfolio} />
     </div>
   );
 }

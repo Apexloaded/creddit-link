@@ -156,7 +156,7 @@ export default buildModule("CredditProtocol", (m) => {
   };
 
   // ---------------------------------------------------------------------
-  // 0. CredditTreasury (UUPS via ERC1967Proxy)
+  // CredditTreasury (UUPS via ERC1967Proxy)
   // ---------------------------------------------------------------------
   const treasuryImpl = m.contract("CredditTreasury", [], {
     id: "CredditTreasuryImpl",
@@ -174,7 +174,7 @@ export default buildModule("CredditProtocol", (m) => {
   });
 
   // ---------------------------------------------------------------------
-  // 1. CredditInterestRateModel (UUPS via ERC1967Proxy)
+  // CredditInterestRateModel (UUPS via ERC1967Proxy)
   // ---------------------------------------------------------------------
   const rateModelImpl = m.contract("CredditInterestRateModel", [], {
     id: "RateModelImpl",
@@ -193,7 +193,7 @@ export default buildModule("CredditProtocol", (m) => {
   });
 
   // ---------------------------------------------------------------------
-  // 2. CredditLiquidityPool — depends on rateModel
+  // CredditLiquidityPool — depends on rateModel
   // ---------------------------------------------------------------------
   const poolName = m.getParameter("poolName", "Creddit USDG");
   const poolSymbol = m.getParameter("poolSymbol", "cUSDG");
@@ -215,7 +215,7 @@ export default buildModule("CredditProtocol", (m) => {
   });
 
   // ---------------------------------------------------------------------
-  // 3. CredditOracle (independent)
+  // CredditOracle (independent)
   // ---------------------------------------------------------------------
   const oracleImpl = m.contract("CredditOracle", [], { id: "OracleImpl" });
   const oracleInitData = m.encodeFunctionCall(oracleImpl, "initialize", [
@@ -227,7 +227,7 @@ export default buildModule("CredditProtocol", (m) => {
   const oracle = m.contractAt("CredditOracle", oracleProxy, { id: "Oracle" });
 
   // ---------------------------------------------------------------------
-  // 4. CredditAssetRegistry (independent)
+  // CredditAssetRegistry (independent)
   // ---------------------------------------------------------------------
   const registryImpl = m.contract("CredditAssetRegistry", [], {
     id: "RegistryImpl",
@@ -245,7 +245,7 @@ export default buildModule("CredditProtocol", (m) => {
   });
 
   // ---------------------------------------------------------------------
-  // 5. CredditRiskEngine — depends on registry + oracle
+  // CredditRiskEngine — depends on registry + oracle
   // ---------------------------------------------------------------------
   const riskEngineImpl = m.contract("CredditRiskEngine", [], {
     id: "RiskEngineImpl",
@@ -272,7 +272,7 @@ export default buildModule("CredditProtocol", (m) => {
   });
 
   // ---------------------------------------------------------------------
-  // 6. CredditLendingRouter — depends on usdg only
+  // CredditLendingRouter — depends on usdg only
   // ---------------------------------------------------------------------
   const routerImpl = m.contract("CredditLendingRouter", [], {
     id: "RouterImpl",
@@ -289,7 +289,7 @@ export default buildModule("CredditProtocol", (m) => {
   });
 
   // ---------------------------------------------------------------------
-  // 7. CredditCreditLine — depends on registry, usdg, riskEngine, oracle, router
+  // CredditCreditLine — depends on registry, usdg, riskEngine, oracle, router
   // ---------------------------------------------------------------------
   const creditLineImpl = m.contract("CredditCreditLine", [], {
     id: "CreditLineImpl",
@@ -309,6 +309,13 @@ export default buildModule("CredditProtocol", (m) => {
   });
 
   // ---------------------------------------------------------------------
+  // CredditLens
+  // ---------------------------------------------------------------------
+  const credditLens = m.contract("CredditLens", [creditLine, pool], {
+    id: "CredditLensImpl",
+  });
+
+  // ---------------------------------------------------------------------
   // Wiring — cross-contract role grants / registrations.
   // ---------------------------------------------------------------------
   m.call(pool, "setRouter", [router], { id: "PoolSetRouter" });
@@ -318,7 +325,7 @@ export default buildModule("CredditProtocol", (m) => {
   });
 
   // ---------------------------------------------------------------------
-  // 8. Mock tokenized-equity collateral (testnet only): one MockERC20 +
+  // Mock tokenized-equity collateral (testnet only): one MockERC20 +
   // one MockV3Aggregator per stock, wired into the oracle and registry.
   // ---------------------------------------------------------------------
   const stockTokens: Record<string, unknown> = {};
@@ -365,6 +372,7 @@ export default buildModule("CredditProtocol", (m) => {
   }
 
   return {
+    credditLens,
     rateModel,
     rateModelProxy,
     pool,

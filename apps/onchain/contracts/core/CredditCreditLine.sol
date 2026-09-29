@@ -16,6 +16,7 @@ import {CreditRiskMath} from "../libraries/CreditRiskMath.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {ZeroAddressProvided, ZeroAmount, AssetNotEnabled} from "./CredditErrors.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
+import {Position, LiquidationAmounts, PositionOpenedEvent, PositionClosedEvent, BorrowedEvent, RepaidEvent, LiquidatedEvent, CollateralDepositedEvent, CollateralWithdrawnEvent, DebtInterestAccruedEvent} from "../interfaces/ICredditCreditLine.sol";
 
 /// @notice Custom Errors for the CredditCore contract
 error MaxExposureExceeded(address asset, uint256 newTotal, uint256 maxExposure);
@@ -25,9 +26,9 @@ error InsufficientCollateralBalance(
     uint256 requested,
     uint256 balance
 );
-error NoActiveDebt(address user);
+error NoActiveDebt(uint256 positionId);
 error ExceedsCreditLimit(uint256 requestedDebt, uint256 creditLimit);
-error PositionNotLiquidatable(address user, uint256 debt);
+error PositionNotLiquidatable(uint256 positionId, uint256 debt);
 error InsufficientSeizableCollateral(
     address asset,
     uint256 requested,
@@ -35,6 +36,8 @@ error InsufficientSeizableCollateral(
 );
 error PositionUnsafeAfterWithdrawal();
 error RouterRepayShortfall(uint256 requested, uint256 paid);
+error PositionDoesNotExist(uint256 positionId);
+error NotPositionOwner(uint256 positionId, address caller);
 
 /// @title CredditCreditLine
 /// @notice The central CredditLink protocol contract. Lets a user
@@ -42,6 +45,7 @@ error RouterRepayShortfall(uint256 requested, uint256 paid);
 /// unified USDG credit line against their combined, risk-adjusted portfolio value
 contract CredditCreditLine is CredditCore {
     using EnumerableSet for EnumerableSet.AddressSet;
+    using EnumerableSet for EnumerableSet.UintSet;
     using SafeERC20 for IERC20;
     using WadMath for uint256;
 
@@ -65,111 +69,53 @@ contract CredditCreditLine is CredditCore {
     /// @dev The number of decimals of the USDG token.
     uint8 public usdgDecimals;
 
+    /// @dev Total counter for positions opened.
+    uint256 public nextPositionId;
+
     /// @dev The debt index for USDG. Initialized to 1e18 in `initialize`.
     uint256 public debtIndexWad;
-    /// @dev Total number of debt shares across all users.
+    /// @dev Total number of debt shares across all positions.
     uint256 public totalDebtShares;
     /// @dev Timestamp of the last interest accrual.
     uint256 public lastAccrualTimestamp;
 
-    /// @notice Struct to group variables and cleanly pass execution state between helpers
-    /// @param debtToCover The amount of USDG to liquidate collateral for.
-    /// @param debtToCoverWad The amount of USDG to liquidate collateral for in 18 decimals.
-    /// @param totalCollateralToSeize The total collateral to seize.
-    /// @param liquidatorReward The liquidator reward.
-    /// @param protocolFee The protocol fee.
-    struct LiquidationAmounts {
-        uint256 debtToCover;
-        uint256 debtToCoverWad;
-        uint256 totalCollateralToSeize;
-        uint256 liquidatorReward;
-        uint256 protocolFee;
+    /// @dev positionId => position struct
+    mapping(uint256 => Position) public positions;
+    /// @dev positionId => debt balance (in USDG shares)
+    mapping(uint256 => uint256) public debtShares;
+
+    /// @dev positionId => collateral asset => raw token amount deposited
+    mapping(uint256 => mapping(address => uint256))
+        public positionCollateralBalance;
+    /// @dev positionId => active assets held in position
+    mapping(uint256 => EnumerableSet.AddressSet)
+        private _positionCollateralAssets;
+    /// @dev user => set of position IDs
+    mapping(address => EnumerableSet.UintSet) private _userPositions;
+    /// @dev positionId => asset => whether position holds asset
+    mapping(uint256 => mapping(address => bool)) internal _positionHasAsset;
+    /// @dev Total deposited per asset across all positions (checked against maxExposure)
+    mapping(address => uint256) public totalDeposited;
+
+    /// @notice Modifier to ensure the caller is the owner of the position.
+    /// @param positionId The ID of the position.
+    /// @dev Reverts if the position does not exist or if the caller is not the owner.
+    modifier onlyPositionOwner(uint256 positionId) {
+        if (positions[positionId].owner == address(0))
+            revert PositionDoesNotExist(positionId);
+        if (positions[positionId].owner != msg.sender)
+            revert NotPositionOwner(positionId, msg.sender);
+        _;
     }
 
-    /// @notice Emitted when debt is issued.
-    /// @param user The address of the user.
-    /// @param amountWad The amount of debt issued.
-    /// @param sharesMintedWad The number of debt shares minted.
-    /// @param newTotalDebtWad The new total debt.
-    event Borrowed(
-        address indexed user,
-        uint256 amountWad,
-        uint256 sharesMintedWad,
-        uint256 newTotalDebtWad
-    );
-
-    /// @notice Emitted when USDG is repaid.
-    /// @param payer The address of the payer.
-    /// @param user The address of the user.
-    /// @param amountRepaid The amount of USDG repaid.
-    /// @param sharesBurned The number of debt shares burned.
-    /// @param newTotalDebt The new total debt.
-    event Repaid(
-        address indexed payer,
-        address indexed user,
-        uint256 amountRepaid,
-        uint256 sharesBurned,
-        uint256 newTotalDebt
-    );
-
-    /// @notice Emitted when collateral is liquidated.
-    /// @param liquidator The address of the liquidator.
-    /// @param user The address of the user.
-    /// @param collateralAsset The asset that was liquidated.
-    /// @param debtAmount The amount of debt that was liquidated.
-    /// @param collateralToSeize The amount of collateral that was liquidated.
-    event Liquidated(
-        address indexed liquidator,
-        address indexed user,
-        address indexed collateralAsset,
-        uint256 debtAmount,
-        uint256 collateralToSeize
-    );
-
-    /// @notice Emitted when collateral is deposited.
-    /// @param user The address of the user.
-    /// @param asset The asset that was deposited.
-    /// @param amount The amount of the asset that was deposited.
-    event CollateralDeposited(
-        address indexed user,
-        address indexed asset,
-        uint256 amount
-    );
-
-    /// @notice Emitted when collateral is withdrawn.
-    /// @param user The address of the user.
-    /// @param asset The asset that was withdrawn.
-    /// @param amount The amount of the asset that was withdrawn.
-    event CollateralWithdrawn(
-        address indexed user,
-        address indexed asset,
-        uint256 amount
-    );
-
-    /// @notice Emitted when debt interest is accrued.
-    /// @param debtIncreaseWad The amount of debt increase.
-    /// @param newDebtIndexWad The new debt index.
-    /// @param borrowAPR The borrow APR.
-    event DebtInterestAccrued(
-        uint256 debtIncreaseWad,
-        uint256 newDebtIndexWad,
-        uint256 borrowAPR
-    );
-
-    /// @dev user => debt balance (in USDG) issued against collateral.
-    mapping(address => uint256) public debtShares;
-    /// @dev user => collateral asset => raw token amount deposited.
-    mapping(address => mapping(address => uint256))
-        public userCollateralBalance;
-    /// @dev user => bounded list of assets they currently (or previously) hold,
-    /// used only to bound iteration; membership also tracked in `_userHasAsset`.
-    mapping(address => EnumerableSet.AddressSet) private _userCollateralAssets;
-    /// @dev user => asset => true if user currently holds that asset.
-    /// used to check if an asset has been deposited by a user.
-    mapping(address => mapping(address => bool)) internal _userHasAsset;
-    /// @dev running total deposited per asset across all users, checked against
-    /// the registry's maxExposure.
-    mapping(address => uint256) public totalDeposited;
+    /// @notice Modifier to ensure the position exists.
+    /// @param positionId The ID of the position.
+    /// @dev Reverts if the position does not exist.
+    modifier positionExists(uint256 positionId) {
+        if (positions[positionId].owner == address(0))
+            revert PositionDoesNotExist(positionId);
+        _;
+    }
 
     /// @notice Initialized only once when the contract is deployed.
     /// @param admin The address of the admin (the deployer), also pauser and DEFAULT_ADMIN_ROLE.
@@ -213,13 +159,45 @@ contract CredditCreditLine is CredditCore {
         lastAccrualTimestamp = block.timestamp;
     }
 
+    /// @notice Opens a new position for the caller.
+    /// @return positionId The ID of the new position.
+    function openPosition() public whenNotPaused returns (uint256 positionId) {
+        positionId = ++nextPositionId;
+        positions[positionId] = Position({
+            owner: msg.sender,
+            openedAt: uint64(block.timestamp),
+            closedAt: 0,
+            isClosed: false,
+            isLiquidated: false,
+            liquidatedAt: 0,
+            cumulativeBorrowed: 0,
+            cumulativeRepaid: 0
+        });
+        _userPositions[msg.sender].add(positionId);
+        emit PositionOpenedEvent(positionId, msg.sender);
+    }
+
+    /// @notice Opens a new position for the caller and deposits collateral into it.
+    /// @param asset The asset to deposit.
+    /// @param amount The amount of the asset to deposit.
+    /// @return positionId The ID of the new position.
+    function openPositionAndDeposit(
+        address asset,
+        uint256 amount
+    ) external whenNotPaused returns (uint256 positionId) {
+        positionId = openPosition();
+        depositCollateral(positionId, asset, amount);
+    }
+
     /// @notice Deposits collateral into the protocol.
+    /// @param positionId The ID of the position.
     /// @param asset The asset to deposit.
     /// @param amount The amount of the asset to deposit.
     function depositCollateral(
+        uint256 positionId,
         address asset,
         uint256 amount
-    ) external whenNotPaused nonReentrant {
+    ) public whenNotPaused nonReentrant positionExists(positionId) {
         if (amount == 0) revert ZeroAmount();
         _syncDebtIndex();
 
@@ -231,14 +209,14 @@ contract CredditCreditLine is CredditCore {
             revert MaxExposureExceeded(asset, newTotal, cfg.maxExposure);
         }
 
-        if (!_userHasAsset[msg.sender][asset]) {
+        if (!_positionHasAsset[positionId][asset]) {
             if (
-                _userCollateralAssets[msg.sender].length() >=
+                _positionCollateralAssets[positionId].length() >=
                 riskEngine.maxCollateralAssetsPerUser()
             ) revert TooManyCollateralAssets();
 
-            _userHasAsset[msg.sender][asset] = true;
-            _userCollateralAssets[msg.sender].add(asset);
+            _positionHasAsset[positionId][asset] = true;
+            _positionCollateralAssets[positionId].add(asset);
         }
 
         uint256 balanceBefore = IERC20(asset).balanceOf(address(this));
@@ -252,41 +230,43 @@ contract CredditCreditLine is CredditCore {
             revert MaxExposureExceeded(asset, receivedTotal, cfg.maxExposure);
         }
 
-        userCollateralBalance[msg.sender][asset] += received;
+        positionCollateralBalance[positionId][asset] += received;
         totalDeposited[asset] = receivedTotal;
 
-        emit CollateralDeposited(msg.sender, asset, received);
+        emit CollateralDepositedEvent(positionId, msg.sender, asset, received);
     }
 
     /// @notice Withdraws collateral from the protocol.
+    /// @param positionId The ID of the position.
     /// @param asset The asset to withdraw.
     /// @param amount The amount of the asset to withdraw.
     function withdrawCollateral(
+        uint256 positionId,
         address asset,
         uint256 amount
-    ) external whenNotPaused nonReentrant {
+    ) external whenNotPaused nonReentrant onlyPositionOwner(positionId) {
         if (amount == 0) revert ZeroAmount();
-        uint256 currentBalance = userCollateralBalance[msg.sender][asset];
+        uint256 currentBalance = positionCollateralBalance[positionId][asset];
         if (amount > currentBalance)
             revert InsufficientCollateralBalance(asset, amount, currentBalance);
 
         uint256 newBalance = currentBalance - amount;
-        userCollateralBalance[msg.sender][asset] = newBalance;
+        positionCollateralBalance[positionId][asset] = newBalance;
         totalDeposited[asset] -= amount;
 
         // If fully withdrawn, remove from active set to free up a slot for the user
         if (newBalance == 0) {
-            _removeCollateralAsset(msg.sender, asset);
+            _removeCollateralAsset(positionId, asset);
         }
 
         // Solvency check: with the ledger already reduced, the remaining
         // collateral must still support the outstanding debt.
         _syncDebtIndex();
-        uint256 debtWad = _debtWad(msg.sender);
+        uint256 debtWad = _positionDebtWad(positionId);
         if (debtWad != 0) {
             (uint256 liqWeighted, , ) = riskEngine.riskAdjustedValue(
                 address(this),
-                msg.sender,
+                positionId,
                 false
             );
             if (CreditRiskMath.isLiquidatable(liqWeighted, debtWad))
@@ -295,57 +275,62 @@ contract CredditCreditLine is CredditCore {
 
         IERC20(asset).safeTransfer(msg.sender, amount);
 
-        emit CollateralWithdrawn(msg.sender, asset, amount);
+        emit CollateralWithdrawnEvent(positionId, msg.sender, asset, amount);
     }
 
     /// @notice Borrows USDG against collateral.
+    /// @param positionId The ID of the position.
     /// @param amount The amount of USDG to borrow.
-    function borrow(uint256 amount) external whenNotPaused nonReentrant {
+    function borrow(
+        uint256 positionId,
+        uint256 amount
+    ) external whenNotPaused nonReentrant onlyPositionOwner(positionId) {
         if (amount == 0) revert ZeroAmount();
         _syncDebtIndex();
 
         uint256 amountWad = amount.toWad(usdgDecimals);
-        uint256 currentUserDebt = _debtWad(msg.sender);
+        uint256 currentUserDebt = _positionDebtWad(positionId);
         uint256 newDebt = currentUserDebt + amountWad;
 
-        uint256 limitWad = riskEngine.creditLimit(address(this), msg.sender);
+        uint256 limitWad = riskEngine.creditLimit(address(this), positionId);
         if (newDebt > limitWad) revert ExceedsCreditLimit(newDebt, limitWad);
 
         // Mint debt shares rounded UP: the protocol never under-tracks debt.
         uint256 sharesToMint = amountWad.wadDivUp(debtIndexWad);
-        debtShares[msg.sender] += sharesToMint;
+        debtShares[positionId] += sharesToMint;
         totalDebtShares += sharesToMint;
+        positions[positionId].cumulativeBorrowed += amount;
 
         // Mint USDG to user via router
         router.borrow(msg.sender, amount);
 
-        emit Borrowed(msg.sender, amountWad, sharesToMint, newDebt);
+        emit BorrowedEvent(
+            positionId,
+            msg.sender,
+            amountWad,
+            sharesToMint,
+            newDebt
+        );
     }
 
     /// @notice Repays USDG debt.
+    /// @param positionId The ID of the position.
     /// @param amount The amount of USDG to repay.
-    function repay(uint256 amount) external whenNotPaused nonReentrant {
-        _repay(msg.sender, msg.sender, amount);
-    }
-
-    /// @notice Repays USDG debt on behalf of another user.
-    /// @param user The address of the user to repay debt for.
-    /// @param amount The amount of USDG to repay.
-    function repayFor(
-        address user,
+    function repay(
+        uint256 positionId,
         uint256 amount
-    ) external whenNotPaused nonReentrant {
-        _repay(msg.sender, user, amount);
+    ) external whenNotPaused nonReentrant positionExists(positionId) {
+        _repay(msg.sender, positionId, amount);
     }
 
     /// @notice Liquidates the collateral of a user.
-    /// @param borrower The address of the user to liquidate collateral for.
+    /// @param positionId The position id to be liquidated.
     /// @param collateralAsset The asset to liquidate collateral for.
     /// @param debtToCover The amount of USDG to liquidate collateral for.
     /// @dev user can repay partial of the debt or the whole debt
     /// @dev anyone can call this function to liquidate
     function liquidate(
-        address borrower,
+        uint256 positionId,
         address collateralAsset,
         uint256 debtToCover
     ) external nonReentrant whenNotPaused {
@@ -354,52 +339,79 @@ contract CredditCreditLine is CredditCore {
 
         // Step 1: Validate position and cap debt repayment limits
         uint256 debtToCoverWad = _validateAndCapRepayment(
-            borrower,
+            positionId,
             debtToCover
         );
 
         // Step 2: Compute oracle prices, dynamic collateral capping, and fee breakdowns
         LiquidationAmounts memory amounts = _calculateLiquidationSeizure(
-            borrower,
+            positionId,
             collateralAsset,
             debtToCoverWad
         );
 
         // Step 3: Apply state changes, burn shares, repay debt, and transfer tokens
-        _executeLiquidationState(borrower, collateralAsset, amounts);
+        _executeLiquidationState(positionId, collateralAsset, amounts);
     }
 
     /*********************************************************************
      * EXTERNAL VIEW FUNCTIONS
      *********************************************************************/
 
-    /// @notice Returns the amount of collateral for a specific user and asset.
+    /// @notice Returns array of all active position IDs for a given user
     /// @param user The address of the user.
+    /// @return Array of position IDs owned by the user.
+    function getUserPositions(
+        address user
+    ) external view returns (uint256[] memory) {
+        return _userPositions[user].values();
+    }
+
+    /// @notice Returns array of all active assets for a specific position.
+    /// @param positionId The position id.
+    /// @return Array of assets for the specified position.
+    function getPositionAssets(
+        uint256 positionId
+    ) public view returns (address[] memory) {
+        return _positionCollateralAssets[positionId].values();
+    }
+
+    /// @notice Returns the owner of a specific position.
+    /// @param positionId The position id.
+    /// @return The owner of the specified position.
+    function getPositionOwner(
+        uint256 positionId
+    ) public view returns (address) {
+        return positions[positionId].owner;
+    }
+
+    /// @notice Returns the amount of collateral for a specific position and asset.
+    /// @param positionId The position id.
     /// @param asset The address of the asset.
-    /// @return The amount of collateral for the specified user and asset.
+    /// @return The amount of collateral for the specified position and asset.
     function collateralOf(
-        address user,
+        uint256 positionId,
         address asset
     ) external view returns (uint256) {
-        return userCollateralBalance[user][asset];
+        return positionCollateralBalance[positionId][asset];
     }
 
-    /// @notice Returns the debt for a specific user.
-    /// @param user The address of the user.
-    /// @return The amount of debt for the specified user.
-    function userDebt(address user) external view returns (uint256) {
-        return _debtWad(user);
+    /// @notice Returns the debt for a specific position.
+    /// @param positionId The position id.
+    /// @return The amount of debt for the specified position.
+    function positionDebt(uint256 positionId) external view returns (uint256) {
+        return _positionDebtWad(positionId);
     }
 
-    /// @notice Returns the risk adjusted value for a specific user.
-    /// @param user The address of the user.
-    /// @return The risk adjusted value for the specified user.
-    function userRiskAdjustedValue(
-        address user
+    /// @notice Returns the risk adjusted value for a specific position.
+    /// @param positionId The position id.
+    /// @return The risk adjusted value for the specified position.
+    function positionRiskAdjustedValue(
+        uint256 positionId
     ) external view returns (uint256) {
         (uint256 liqWeighted, , ) = riskEngine.riskAdjustedValue(
             address(this),
-            user,
+            positionId,
             false
         );
         return liqWeighted;
@@ -438,7 +450,7 @@ contract CredditCreditLine is CredditCore {
             uint256 deltaIndex = newIndex - previousIndex;
             uint256 interestAccruedWad = totalDebtShares.wadMulDown(deltaIndex);
 
-            emit DebtInterestAccrued(
+            emit DebtInterestAccruedEvent(
                 interestAccruedWad,
                 newIndex,
                 router.currentBorrowAPR()
@@ -449,22 +461,22 @@ contract CredditCreditLine is CredditCore {
     }
 
     /// @notice Validates position liquidatability and enforces close factor constraints.
-    /// @param borrower The address of the user to liquidate collateral for.
+    /// @param positionId The position id to liquidate collateral for.
     /// @param debtToCover The amount of USDG to liquidate collateral for.
     /// @return debtToCoverWad The amount of USDG to liquidate collateral for in 18 decimals.
     function _validateAndCapRepayment(
-        address borrower,
+        uint256 positionId,
         uint256 debtToCover
     ) internal view returns (uint256 debtToCoverWad) {
-        uint256 debtWad = _debtWad(borrower);
+        uint256 debtWad = _positionDebtWad(positionId);
 
         bool isLiquidatable = riskEngine.isLiquidatable(
             address(this),
-            borrower,
+            positionId,
             debtWad
         );
         if (!isLiquidatable) {
-            revert PositionNotLiquidatable(borrower, debtWad);
+            revert PositionNotLiquidatable(positionId, debtWad);
         }
 
         debtToCoverWad = debtToCover.toWad(usdgDecimals);
@@ -483,12 +495,12 @@ contract CredditCreditLine is CredditCore {
     }
 
     /// @notice Handles oracle price fetching and computes collateral seizure, dynamic capping, and fee splits.
-    /// @param borrower The address of the user to liquidate collateral for.
+    /// @param positionId The position id to liquidate collateral for.
     /// @param collateralAsset The address of the asset to liquidate collateral for.
     /// @param debtToCoverWad The amount of USDG to liquidate collateral for in 18 decimals.
     /// @return amounts The collateral seizure amounts.
     function _calculateLiquidationSeizure(
-        address borrower,
+        uint256 positionId,
         address collateralAsset,
         uint256 debtToCoverWad
     ) internal view returns (LiquidationAmounts memory amounts) {
@@ -509,7 +521,7 @@ contract CredditCreditLine is CredditCore {
             cfg.decimals
         );
 
-        uint256 availableCollateral = userCollateralBalance[borrower][
+        uint256 availableCollateral = positionCollateralBalance[positionId][
             collateralAsset
         ];
 
@@ -560,48 +572,56 @@ contract CredditCreditLine is CredditCore {
     }
 
     /// @notice Updates storage ledgers, burns debt shares, executes transfers, and emits event.
-    /// @param borrower The address of the user to liquidate collateral for.
+    /// @param positionId The position id to liquidate collateral for.
     /// @param collateralAsset The address of the asset to liquidate collateral for.
     /// @param amounts The collateral seizure amounts.
     function _executeLiquidationState(
-        address borrower,
+        uint256 positionId,
         address collateralAsset,
         LiquidationAmounts memory amounts
     ) internal {
-        uint256 borrowerDebtWad = _debtWad(borrower);
+        uint256 borrowerDebtWad = _positionDebtWad(positionId);
         uint256 sharesToRemove;
 
         // Calculate exact shares to burn using wadDivUp
         if (amounts.debtToCoverWad >= borrowerDebtWad) {
-            sharesToRemove = debtShares[borrower];
+            sharesToRemove = debtShares[positionId];
         } else {
             sharesToRemove = amounts.debtToCoverWad.wadDivUp(debtIndexWad);
-            if (sharesToRemove > debtShares[borrower]) {
-                sharesToRemove = debtShares[borrower];
+            if (sharesToRemove > debtShares[positionId]) {
+                sharesToRemove = debtShares[positionId];
             }
         }
 
         // Update Debt Shares
-        debtShares[borrower] -= sharesToRemove;
+        debtShares[positionId] -= sharesToRemove;
         totalDebtShares -= sharesToRemove;
 
         // Update Local Collateral Ledger
-        uint256 availableCollateral = userCollateralBalance[borrower][
+        uint256 availableCollateral = positionCollateralBalance[positionId][
             collateralAsset
         ];
-        userCollateralBalance[borrower][collateralAsset] =
+        positionCollateralBalance[positionId][collateralAsset] =
             availableCollateral -
             amounts.totalCollateralToSeize;
         totalDeposited[collateralAsset] -= amounts.totalCollateralToSeize;
 
         if (availableCollateral == amounts.totalCollateralToSeize) {
-            _removeCollateralAsset(borrower, collateralAsset);
+            _removeCollateralAsset(positionId, collateralAsset);
+        }
+
+        if (debtShares[positionId] == 0 && _isCollateralEmpty(positionId)) {
+            positions[positionId].isClosed = true;
+            positions[positionId].closedAt = uint64(block.timestamp);
+            positions[positionId].isLiquidated = true;
+            positions[positionId].liquidatedAt = uint64(block.timestamp);
         }
 
         // Repay debt through router
+        address owner = positions[positionId].owner;
         _repayViaRouter(
             msg.sender,
-            borrower,
+            owner,
             amounts.debtToCover,
             amounts.debtToCoverWad
         );
@@ -620,9 +640,10 @@ contract CredditCreditLine is CredditCore {
             );
         }
 
-        emit Liquidated(
+        emit LiquidatedEvent(
+            positionId,
             msg.sender,
-            borrower,
+            owner,
             collateralAsset,
             amounts.debtToCoverWad,
             amounts.totalCollateralToSeize
@@ -631,9 +652,14 @@ contract CredditCreditLine is CredditCore {
 
     /// @notice Removes an asset from a user's active collateral set and clears its flag,
     /// so a later re-deposit re-registers the asset.
-    function _removeCollateralAsset(address user, address asset) internal {
-        _userCollateralAssets[user].remove(asset);
-        _userHasAsset[user][asset] = false;
+    /// @param positionId The ID of the position.
+    /// @param asset The address of the asset to remove.
+    function _removeCollateralAsset(
+        uint256 positionId,
+        address asset
+    ) internal {
+        _positionCollateralAssets[positionId].remove(asset);
+        _positionHasAsset[positionId][asset] = false;
     }
 
     /// @notice Pulls `amount` USDG from `payer` and repays `user`'s debt through the router.
@@ -661,22 +687,43 @@ contract CredditCreditLine is CredditCore {
     }
 
     /// @notice Calculates the debt of the specified user.
-    /// @param user The address of the user.
+    /// @param positionId The ID of the position.
     /// @return The debt balance of the specified user in USDG.
-    function _debtWad(address user) internal view returns (uint256) {
-        return debtShares[user].wadMulUp(debtIndexWad);
+    function _positionDebtWad(
+        uint256 positionId
+    ) internal view returns (uint256) {
+        return debtShares[positionId].wadMulUp(debtIndexWad);
+    }
+
+    function _isCollateralEmpty(
+        uint256 positionId
+    ) internal view returns (bool) {
+        EnumerableSet.AddressSet storage assets = _positionCollateralAssets[
+            positionId
+        ];
+        for (uint256 i = 0; i < assets.length(); i++) {
+            address asset = assets.at(i);
+            if (positionCollateralBalance[positionId][asset] > 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /// @notice Internal helper function to repay USDG debt.
     /// @param payer The address of the payer.
-    /// @param user The address of the user to repay debt for.
+    /// @param positionId The ID of the position.
     /// @param amount The amount of USDG to repay.
-    function _repay(address payer, address user, uint256 amount) internal {
+    function _repay(
+        address payer,
+        uint256 positionId,
+        uint256 amount
+    ) internal {
         if (amount == 0) revert ZeroAmount();
         _syncDebtIndex();
 
-        uint256 debtWad = _debtWad(user);
-        if (debtWad == 0) revert NoActiveDebt(user);
+        uint256 debtWad = _positionDebtWad(positionId);
+        if (debtWad == 0) revert NoActiveDebt(positionId);
 
         uint256 amountWad = amount.toWad(usdgDecimals);
 
@@ -691,7 +738,7 @@ contract CredditCreditLine is CredditCore {
             actualAmountRepaidWad = debtWad;
 
             // Burn 100% of the user's debt shares to guarantee complete cleanup and avoid underflows.
-            sharesToBurn = debtShares[user];
+            sharesToBurn = debtShares[positionId];
         }
         // --- PARTIAL REPAYMENT ---
         else {
@@ -703,28 +750,38 @@ contract CredditCreditLine is CredditCore {
             sharesToBurn = amountWad.wadDivUp(debtIndexWad);
 
             // Safety cap against edge-case rounding overflowing the user's total shares balance
-            if (sharesToBurn > debtShares[user]) {
-                sharesToBurn = debtShares[user];
+            if (sharesToBurn > debtShares[positionId]) {
+                sharesToBurn = debtShares[positionId];
             }
         }
 
-        debtShares[user] -= sharesToBurn;
+        debtShares[positionId] -= sharesToBurn;
         totalDebtShares -= sharesToBurn;
+        positions[positionId].cumulativeRepaid += actualAmountRepaid;
 
         // Interaction: pull USDG from the payer and repay through the router.
         // A shortfall beyond rounding dust reverts, which unwinds the share burn above.
+        address owner = positions[positionId].owner;
         uint256 paid = _repayViaRouter(
             payer,
-            user,
+            owner,
             actualAmountRepaid,
             actualAmountRepaidWad
         );
 
-        uint256 remainingDebtWad = _debtWad(user);
+        uint256 remainingDebtWad = _positionDebtWad(positionId);
 
-        emit Repaid(
+        // If no debt left and no collateral, close position
+        if (debtShares[positionId] == 0 && _isCollateralEmpty(positionId)) {
+            positions[positionId].isClosed = true;
+            positions[positionId].closedAt = uint64(block.timestamp);
+            emit PositionClosedEvent(positionId, owner, block.timestamp);
+        }
+
+        emit RepaidEvent(
+            positionId,
             payer,
-            user,
+            owner,
             paid,
             sharesToBurn,
             remainingDebtWad.fromWadDown(usdgDecimals)

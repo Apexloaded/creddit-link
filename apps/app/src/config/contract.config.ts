@@ -1,9 +1,6 @@
 import { Address } from "viem";
 import { hardhat, robinhoodTestnet } from "viem/chains";
 
-export const ASSET_REGISTRY_ADDRESS: Address =
-  "0x851356ae760d987E095750cCeb3bC6014560891C";
-
 enum Contracts {
   /**
    *  PROTOCOL CONTRACTS
@@ -13,6 +10,7 @@ enum Contracts {
   CREDIT_LINE = "CREDIT_LINE",
   RISK_ENGINE = "RISK_ENGINE",
   LIQUIDITY_POOL = "LIQUIDITY_POOL",
+  LENS = "LENS",
 
   /**
    * PROTOCOL TOKENS
@@ -32,9 +30,10 @@ export const CREDDIT_PROTOCOL_ADDRESSES: Record<Contracts, Address> = {
   [Contracts.RISK_ENGINE]: "0x7bc06c482DEAd17c0e297aFbC32f6e63d3846650",
   [Contracts.LIQUIDITY_POOL]: "0x7969c5eD335650692Bc04293B07F5BF2e7A673C0",
   [Contracts.USDG]: "0x4A679253410272dd5232B3Ff7cF5dbB88f295319",
+  [Contracts.LENS]: "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
 };
 
 export const CREDDIT_ADDRESSES: Record<number, Record<Contracts, Address>> = {
   [hardhat.id]: CREDDIT_PROTOCOL_ADDRESSES,
-  [robinhoodTestnet.id]: CREDDIT_PROTOCOL_ADDRESSES
+  [robinhoodTestnet.id]: CREDDIT_PROTOCOL_ADDRESSES,
 };

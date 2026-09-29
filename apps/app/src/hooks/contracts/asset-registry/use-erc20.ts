@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
-import { useReadContracts, useAccount } from "wagmi";
+import { useReadContracts, useConnection } from "wagmi";
 import { Address, formatUnits } from "viem";
 import { erc20Abi } from "@/contracts/abis/erc20Abi";
 
 export function useErc20Details(tokenAddress?: Address, spender?: Address) {
-  const { address: userAddress } = useAccount();
+  const { address: userAddress } = useConnection();
 
   const contracts = useMemo(() => {
     if (!tokenAddress) return [];

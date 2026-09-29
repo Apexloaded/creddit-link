@@ -388,9 +388,9 @@ export const credditRiskEngineAbi = [
         type: "address",
       },
       {
-        internalType: "address",
-        name: "user",
-        type: "address",
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
       },
     ],
     name: "creditLimit",
@@ -412,9 +412,9 @@ export const credditRiskEngineAbi = [
         type: "address",
       },
       {
-        internalType: "address",
-        name: "user",
-        type: "address",
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
       },
     ],
     name: "creditLimitSafe",
@@ -558,9 +558,9 @@ export const credditRiskEngineAbi = [
         type: "address",
       },
       {
-        internalType: "address",
-        name: "user",
-        type: "address",
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
       },
       {
         internalType: "uint256",
@@ -587,9 +587,9 @@ export const credditRiskEngineAbi = [
         type: "address",
       },
       {
-        internalType: "address",
-        name: "user",
-        type: "address",
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
       },
       {
         internalType: "uint256",
@@ -629,9 +629,9 @@ export const credditRiskEngineAbi = [
         type: "address",
       },
       {
-        internalType: "address",
-        name: "user",
-        type: "address",
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
       },
       {
         internalType: "bool",
@@ -796,9 +796,9 @@ export const credditRiskEngineAbi = [
         type: "address",
       },
       {
-        internalType: "address",
-        name: "user",
-        type: "address",
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
       },
       {
         internalType: "bool",

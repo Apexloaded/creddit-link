@@ -1,5 +1,6 @@
-import { TOKEN_DECIMALS } from "@/config/contract.config";
-import { parseUnits } from "viem";
+import { ORACLE_PRICE_DECIMALS, TOKEN_DECIMALS } from "@/config/contract.config";
+import { FormattedAmount } from "@/interfaces/asset.interface";
+import { formatUnits, parseUnits } from "viem";
 
 export { cn } from "cn";
 
@@ -223,6 +224,17 @@ export function cleanPrice(
   }
 
   return cleaned;
+}
+
+export function toFormattedAmount(
+  raw: bigint,
+  decimals = ORACLE_PRICE_DECIMALS,
+  customFormat?: string,
+): FormattedAmount {
+  return {
+    raw,
+    formatted: customFormat ?? formatUnits(raw, decimals),
+  };
 }
 
 export function truncateForMaxDecimals(

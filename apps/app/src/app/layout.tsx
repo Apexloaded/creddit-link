@@ -3,7 +3,7 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ReduxProvider } from "@/providers/redux-provider";
-import { AppProvider } from "@/context/app.context";
+import { CredditProvider } from "@/context/creddit.context";
 import ReactQueryProvider from "@/providers/react-query.provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WagmiProvider } from "@/providers/wagmi.provider";
@@ -44,7 +44,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <WagmiProvider>
             <ReactQueryProvider>
               <TooltipProvider>
-                <AppProvider>{children}</AppProvider>
+                <CredditProvider>{children}</CredditProvider>
               </TooltipProvider>
             </ReactQueryProvider>
           </WagmiProvider>

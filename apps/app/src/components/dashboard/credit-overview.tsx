@@ -4,9 +4,11 @@ import { ArrowUpRight, InfoIcon } from "lucide-react";
 import { Skeleton } from "../ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { Button } from "../ui/button";
+import { IPortfolio } from "@/interfaces/creddit-lens.interface";
 
 type Props = {
   creditLimit?: ICreditLimit;
+  portfolio?: IPortfolio;
   isLoading: boolean;
 };
 
@@ -17,14 +19,13 @@ function getUtilizationColor(percentage: number): string {
   return "bg-primary/40";
 }
 
-export function CreditOverview({ creditLimit, isLoading }: Props) {
-  console.log(creditLimit);
-  const borrowed = parseFloat(creditLimit?.userDebt ?? "0");
-  const totalCredit = parseFloat(creditLimit?.limit ?? "0");
-  const availableCredit = Math.max(0, totalCredit - borrowed);
+export function CreditOverview({ portfolio, isLoading }: Props) {
+  const borrowed = parseFloat(portfolio?.debtUsd.formatted ?? "0");
+  const creditLimit = parseFloat(portfolio?.creditLimitUsd.formatted ?? "0");
+  const availableCredit = Math.max(0, creditLimit - borrowed);
 
   // Guard against division by zero
-  const rawUtilization = totalCredit > 0 ? (borrowed / totalCredit) * 100 : 0;
+  const rawUtilization = creditLimit > 0 ? (borrowed / creditLimit) * 100 : 0;
   // Cap visual width at 100%
   const utilization = Math.min(100, Math.max(0, rawUtilization));
 
@@ -44,7 +45,7 @@ export function CreditOverview({ creditLimit, isLoading }: Props) {
                 <h2 className="font-serif text-3xl tracking-tight text-foreground">
                   {creditLimit ? formatCurrency(availableCredit) : "$0.00"}
                 </h2>
-                {creditLimit?.isStale && (
+                {portfolio?.isStale && (
                   <div className="h-5 absolute -right-6 bottom-2 flex items-center gap-1 justify-center">
                     <Tooltip>
                       <TooltipTrigger>
@@ -84,7 +85,7 @@ export function CreditOverview({ creditLimit, isLoading }: Props) {
           <span className="text-foreground/80">Used</span>
 
           <span className="font-medium text-foreground">
-            ${borrowed.toLocaleString()} - {formatCurrency(totalCredit)}
+            ${borrowed.toLocaleString()} - {formatCurrency(creditLimit)}
           </span>
         </div>
 

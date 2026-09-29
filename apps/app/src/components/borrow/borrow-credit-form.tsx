@@ -1,40 +1,32 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { CheckIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { borrowSchemaResolver, BorrowSchemaType } from "@/schemas";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { formatCurrency } from "@/lib/utils";
-import { IAsset } from "@/interfaces/asset.interface";
-import { Input } from "../ui/input";
 import { CurrencyInputField } from "../ui/currency-input";
-
-const MAX_LTV = 0.65;
+import { IPosition } from "@/interfaces/creddit-lens.interface";
 
 type Props = {
   onCloseModal?: () => void;
   onBorrow: (value: BorrowSchemaType) => void;
   borrowText?: string;
-  assets: IAsset[];
+  positions: IPosition[];
   isBorrowing: boolean;
 };
 
 export default function BorrowCreditForm({
-  assets = [],
+  positions = [],
   onCloseModal,
   onBorrow,
   borrowText = "Borrow",
-  isBorrowing
+  isBorrowing,
 }: Props) {
-  const validAssets = useMemo(
-    () => assets.filter((a) => Boolean(a.symbol)),
-    [assets],
-  );
-
-  // Store selected symbols in state
-  const [selectedSymbols, setSelectedSymbols] = useState<string[]>(
-    assets.length > 0 ? [assets[0].symbol] : [],
+  // Store selected position ID in state (single position allowed)
+  const [selectedPositionId, setSelectedPositionId] = useState<number | null>(
+    positions.length > 0 ? positions[0].id : null,
   );
 
   // Initialize form
@@ -48,37 +40,59 @@ export default function BorrowCreditForm({
     resolver: borrowSchemaResolver,
     defaultValues: {
       amount: "",
+      positionId: positions.length > 0 ? positions[0].id.toString() : undefined,
     },
   });
 
-  // Watch the amount field directly from react-hook-form
-  const amountValue = watch("amount");
+  // Keep selectedPositionId and form field in sync
+  const handleSelectPosition = (positionId: number) => {
+    setSelectedPositionId(positionId);
+    setValue("positionId", positionId.toString(), { shouldValidate: true });
+    // Reset amount input when changing position
+    setValue("amount", "0", { shouldValidate: true });
+  };
 
-  // Derive numerical borrow amount from react-hook-form value
-  const borrowAmount = Number(amountValue) || 0;
-
-  // Calculate collateral value from selected assets
-  const collateralValue = useMemo(
-    () =>
-      assets
-        .filter((asset) => selectedSymbols.includes(asset.symbol))
-        .reduce((total, asset) => total + Number(asset.usdPrice || 0), 0),
-    [assets, selectedSymbols],
+  // Find the active selected position object
+  const selectedPosition = useMemo(
+    () => positions.find((p) => p.id === selectedPositionId) || null,
+    [positions, selectedPositionId],
   );
 
-  const potentialCredit = collateralValue * MAX_LTV;
+  // Derive active position metrics
+  const collateralValue = selectedPosition
+    ? Number(selectedPosition.collateralUsd.formatted)
+    : 0;
 
+  const currentDebt = selectedPosition
+    ? Number(selectedPosition.debt.formatted)
+    : 0;
+
+  const creditLimit = selectedPosition
+    ? Number(selectedPosition.creditLimitUsd.formatted)
+    : 0;
+
+  // Maximum new USDG amount that can be borrowed for this position
+  const maxBorrowCapacity = Math.max(0, creditLimit - currentDebt);
+
+  // Watch the amount field from react-hook-form
+  const amountValue = watch("amount");
+  const borrowAmount = Number(amountValue) || 0;
+
+  // Calculate new simulated totals
+  const totalSimulatedDebt = currentDebt + borrowAmount;
+
+  // Credit utilization against credit limit
   const utilization =
-    potentialCredit > 0 ? (borrowAmount / potentialCredit) * 100 : 0;
+    creditLimit > 0 ? (totalSimulatedDebt / creditLimit) * 100 : 0;
 
   const health =
     utilization === 0
       ? "Healthy"
       : utilization < 50
         ? "Healthy"
-        : utilization < 75
+        : utilization < 80
           ? "Moderate"
-          : "High";
+          : "High Risk";
 
   const healthDot =
     health === "Healthy"
@@ -86,18 +100,6 @@ export default function BorrowCreditForm({
       : health === "Moderate"
         ? "bg-amber-500"
         : "bg-red-500";
-
-  const toggleAsset = (symbol: string) => {
-    setSelectedSymbols((current) => {
-      const exists = current.includes(symbol);
-      return exists
-        ? current.filter((item) => item !== symbol)
-        : [...current, symbol];
-    });
-
-    // Reset form field value via react-hook-form
-    setValue("amount", "0", { shouldValidate: true });
-  };
 
   return (
     <form
@@ -113,8 +115,7 @@ export default function BorrowCreditForm({
             </div>
 
             <p className="mt-1 text-xs text-foreground/40">
-              Borrow USDG at preferential rates by locking your existing assets
-              as collateral.
+              Borrow USDG against an existing collateral position.
             </p>
           </div>
 
@@ -134,74 +135,100 @@ export default function BorrowCreditForm({
                 <p className="text-sm text-foreground/50">USDG credit amount</p>
                 <div className="mt-2 flex items-baseline gap-2">
                   <p className="text-5xl md:text-6xl">$</p>
-   
+
                   <CurrencyInputField
                     control={control}
                     name="amount"
-                    placeholder={formatCurrency(potentialCredit, false)}
+                    placeholder={formatCurrency(maxBorrowCapacity, false)}
                     className="h-16 -ml-2 rounded-none focus-visible:ring-0 border-0 shadow-none bg-transparent px-0 font-heading text-5xl font-normal tracking-tight md:text-6xl"
                   />
                 </div>
 
                 <p className="mt-3 max-w-sm text-sm leading-6 text-foreground/50">
-                  The total amount of USDG to be borrowed against your unified
-                  Creddit collateral
+                  The amount of USDG to borrow against your selected position
+                  (Max: {formatCurrency(maxBorrowCapacity)})
                 </p>
               </div>
             </div>
 
-            {/* Collateral selection */}
+            {/* Position Selection */}
             <div className="mt-10">
               <div className="mb-4 flex items-center justify-between">
                 <p className="text-xs font-medium uppercase tracking-[0.08em] text-foreground/40">
-                  Select collateral
+                  Select Position
                 </p>
 
                 <p className="text-xs text-foreground/40">
-                  {formatCurrency(collateralValue)} selected
+                  Position #{selectedPositionId ?? "None"} selected
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                {validAssets.map((asset) => {
-                  const selected = selectedSymbols.includes(asset.symbol);
+              {positions.length === 0 ? (
+                <div className="rounded-lg border border-line p-4 text-center text-xs text-foreground/50">
+                  No positions available. Please create a position or deposit
+                  collateral first.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {positions.map((pos) => {
+                    const selected = pos.id === selectedPositionId;
+                    const posCollateral = Number(pos.collateralUsd.formatted);
+                    const posDebt = Number(pos.debt.formatted);
+                    const posLimit = Number(pos.creditLimitUsd.formatted);
+                    const posAvailable = Math.max(0, posLimit - posDebt);
 
-                  return (
-                    <button
-                      key={asset.symbol}
-                      type="button"
-                      onClick={() => toggleAsset(asset.symbol)}
-                      className={[
-                        "group flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-all duration-200",
-                        selected
-                          ? "border-foreground/20 bg-secondary"
-                          : "border-line bg-background hover:border-foreground/20 hover:bg-secondary/50",
-                      ].join(" ")}
-                    >
-                      <div>
-                        <p className="font-mono text-xs font-medium">
-                          {asset.symbol}
-                        </p>
+                    // Join underlying collateral asset names (e.g., "ETH, WBTC")
+                    const collateralSymbols = pos.collaterals
+                      .map((c) => c.symbol)
+                      .join(", ");
 
-                        <p className="mt-1 text-xs text-foreground/40">
-                          {formatCurrency(Number(asset.usdPrice))}
-                        </p>
-                      </div>
-
-                      <span
+                    return (
+                      <button
+                        key={pos.id}
+                        type="button"
+                        onClick={() => handleSelectPosition(pos.id)}
                         className={[
-                          "flex size-5 items-center justify-center rounded-full border transition-all duration-200",
+                          "group flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-all duration-200",
                           selected
-                            ? "border-foreground bg-foreground text-background"
-                            : "border-line text-transparent",
+                            ? "border-foreground/20 bg-secondary"
+                            : "border-line bg-background hover:border-foreground/20 hover:bg-secondary/50",
                         ].join(" ")}
                       >
-                        <CheckIcon className="size-3" />
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-mono text-xs font-medium">
+                              Position #{pos.id}
+                            </p>
+                            {collateralSymbols && (
+                              <span className="text-[10px] text-foreground/40 uppercase">
+                                ({collateralSymbols})
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="mt-1 flex items-center gap-3 text-xs text-foreground/50">
+                            <span>
+                              Collateral: {formatCurrency(posCollateral)}
+                            </span>
+                            <span>Limit: {formatCurrency(posAvailable)}</span>
+                          </div>
+                        </div>
+
+                        <span
+                          className={[
+                            "flex size-5 items-center justify-center rounded-full border transition-all duration-200",
+                            selected
+                              ? "border-foreground bg-foreground text-background"
+                              : "border-line text-transparent",
+                          ].join(" ")}
+                        >
+                          <CheckIcon className="size-3" />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Borrow simulation slider */}
@@ -217,10 +244,10 @@ export default function BorrowCreditForm({
               <input
                 type="range"
                 min={0}
-                max={potentialCredit}
-                step={500}
-                value={Math.min(borrowAmount, potentialCredit)}
-                disabled={potentialCredit === 0}
+                max={maxBorrowCapacity}
+                step={10}
+                value={Math.min(borrowAmount, maxBorrowCapacity)}
+                disabled={maxBorrowCapacity === 0}
                 onChange={(e) =>
                   setValue("amount", e.target.value, { shouldValidate: true })
                 }
@@ -228,22 +255,24 @@ export default function BorrowCreditForm({
               />
 
               <div className="mt-3 flex justify-between text-xs text-foreground/40">
-                <span>{formatCurrency(borrowAmount)} borrowed</span>
-                <span>{formatCurrency(potentialCredit)} max</span>
+                <span>{formatCurrency(borrowAmount)} requested</span>
+                <span>{formatCurrency(maxBorrowCapacity)} max capacity</span>
               </div>
             </div>
 
             {/* Utilisation */}
             <div className="mt-8">
               <div className="mb-3 flex items-center justify-between text-xs">
-                <span className="text-foreground/50">Credit utilisation</span>
+                <span className="text-foreground/50">Credit utilization</span>
 
                 <span className="font-medium">{utilization.toFixed(1)}%</span>
               </div>
 
               <div className="h-2 overflow-hidden rounded-full bg-secondary">
                 <div
-                  className="h-full rounded-full bg-foreground transition-all duration-300"
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    utilization >= 80 ? "bg-destructive" : "bg-foreground"
+                  }`}
                   style={{
                     width: `${Math.min(utilization, 100)}%`,
                   }}
@@ -253,42 +282,42 @@ export default function BorrowCreditForm({
           </div>
         </div>
 
+        {/* Footer Metrics */}
         <div className="flex flex-col w-full items-center pb-4">
           <div className="bg-secondary/40 w-full border-y border-line">
             <div className="grid grid-cols-2 divide-x divide-line md:grid-cols-4">
               <div className="px-5 py-5">
                 <p className="text-xs text-foreground/40">Collateral</p>
-
                 <p className="mt-1 text-lg font-medium">
                   {formatCurrency(collateralValue)}
                 </p>
               </div>
 
               <div className="px-5 py-5">
-                <p className="text-xs text-foreground/40">Potential credit</p>
-
+                <p className="text-xs text-foreground/40">Credit Limit</p>
                 <p className="mt-1 text-lg font-medium">
-                  {formatCurrency(potentialCredit)}
+                  {formatCurrency(creditLimit)}
                 </p>
               </div>
 
               <div className="px-5 py-5">
-                <p className="text-xs text-foreground/40">Simulated debt</p>
-
+                <p className="text-xs text-foreground/40">Total Debt</p>
                 <p className="mt-1 text-lg font-medium">
-                  {formatCurrency(borrowAmount)}
+                  {formatCurrency(totalSimulatedDebt)}
                 </p>
               </div>
 
               <div className="px-5 py-5">
-                <p className="text-xs text-foreground/40">Remaining credit</p>
-
+                <p className="text-xs text-foreground/40">Remaining Capacity</p>
                 <p className="mt-1 text-lg font-medium">
-                  {formatCurrency(Math.max(potentialCredit - borrowAmount, 0))}
+                  {formatCurrency(
+                    Math.max(maxBorrowCapacity - borrowAmount, 0),
+                  )}
                 </p>
               </div>
             </div>
           </div>
+
           <div className="flex w-full items-center gap-4 px-6 pt-4">
             <Button
               onClick={onCloseModal}
@@ -301,7 +330,12 @@ export default function BorrowCreditForm({
             </Button>
             <Button
               type="submit"
-              disabled={!isValid || isBorrowing}
+              disabled={
+                !isValid ||
+                isBorrowing ||
+                borrowAmount <= 0 ||
+                borrowAmount > maxBorrowCapacity
+              }
               size={"xl"}
               className={"flex-1"}
             >

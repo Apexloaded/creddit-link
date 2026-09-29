@@ -13,8 +13,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { useDepositCollateral } from "@/hooks/contracts/use-credit-line";
-import { useApp } from "@/context/app.context";
+import { useCredditLine } from "@/hooks/contracts/use-creddit-line";
+import { useCreddit } from "@/context/creddit.context";
 import {
   depositSchemaResolver,
   DepositSchemaType,
@@ -27,7 +27,13 @@ interface DepositFormProps {
 }
 
 export function DepositForm({ onClose }: DepositFormProps) {
-  const { assets, selectedAsset, setSelectedAsset, isListLoading } = useApp();
+  const { assets, selectedAsset, setSelectedAsset, isListLoading } =
+    useCreddit();
+  const { useDeposit } = useCredditLine();
+  const { deposit, isProcessing, stepStatus } = useDeposit(
+    selectedAsset?.token,
+  );
+
   const {
     handleSubmit,
     setValue,
@@ -39,16 +45,11 @@ export function DepositForm({ onClose }: DepositFormProps) {
   } = useForm<DepositSchemaType>({
     resolver: depositSchemaResolver,
     context: { maxBalance: selectedAsset?.balanceFormatted },
-    defaultValues: { amount: "", useAsCollateral: true },
+    defaultValues: { amount: "" },
     mode: "onChange",
   });
 
   const amount = watch("amount");
-
-  const { handleDepositFlow, isProcessing, stepStatus } = useDepositCollateral(
-    selectedAsset?.token,
-    amount,
-  );
 
   const calculatedUsdValue = useMemo(() => {
     const parsedAmount = parseFloat(amount || "0");
@@ -98,7 +99,12 @@ export function DepositForm({ onClose }: DepositFormProps) {
 
   const onSubmit = async (data: DepositSchemaType) => {
     try {
-      await handleDepositFlow();
+      const receipt = await deposit({
+        positionId: data.positionId,
+        amount: data.amount,
+      });
+      console.log(receipt);
+      onClose();
     } catch (error) {
       console.error("Deposit workflow failed or rejected:", error);
     }

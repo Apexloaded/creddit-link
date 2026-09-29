@@ -5,7 +5,7 @@ import { TrendingUpIcon, ShieldCheckIcon, WalletIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { cleanPrice, formatCurrency } from "@/lib/utils";
 import { Input } from "../ui/input";
-import { useApp } from "@/context/app.context";
+import { useCreddit } from "@/context/creddit.context";
 import { useLiquidityPoolData } from "@/hooks/contracts/use-liquidity-pool";
 import { useEarnCalculations } from "@/hooks";
 
@@ -22,7 +22,7 @@ export default function EarnForm({
 }: Props) {
   const [amount, setAmount] = useState<string>("");
   const [activePct, setActivePct] = useState<number | null>(null);
-  const { usdgUnitBalance } = useApp();
+  const { usdgUnitBalance } = useCreddit();
   const {
     currentDebt,
     availableLiquidity,

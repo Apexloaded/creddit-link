@@ -5,17 +5,18 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cleanPrice, cn } from "@/lib/utils";
-import { useBorrow } from "@/hooks/contracts/use-credit-line";
-import { useApp } from "@/context/app.context";
+import { cn } from "@/lib/utils";
+import { useCreddit } from "@/context/creddit.context";
 import BorrowCreditForm from "./borrow-credit-form";
 import { BorrowSchemaType } from "@/schemas";
+import { useCredditLine } from "@/hooks/contracts/use-creddit-line";
 
 export default function BorrowCreditModal() {
   const router = useRouter();
   const [open, setOpen] = useState(true);
-  const { assets, isListLoading } = useApp();
-  const { handleBorrow, isProcessing, stepStatus } = useBorrow();
+  const { assets, isListLoading, positions } = useCreddit();
+  const { useBorrow } = useCredditLine();
+  const { borrow, isProcessing, stepStatus } = useBorrow();
 
   const handleClose = () => {
     setOpen(false);
@@ -34,8 +35,8 @@ export default function BorrowCreditModal() {
     return "Borrow";
   };
 
-  const onBorrow = (data: BorrowSchemaType) => {
-    handleBorrow(cleanPrice(data.amount));
+  const onBorrow = async (data: BorrowSchemaType) => {
+    await borrow(data);
   };
 
   return (
@@ -71,7 +72,7 @@ export default function BorrowCreditModal() {
             onCloseModal={handleClose}
             onBorrow={onBorrow}
             borrowText={getButtonText()}
-            assets={assets}
+            positions={positions}
             isBorrowing={isProcessing}
           />
         </div>

@@ -1,9 +1,10 @@
 import * as yup from "yup";
-import { yupResolver } from "@hookform/resolvers/yup"
+import { yupResolver } from "@hookform/resolvers/yup";
 
 const borrowSchema = yup
   .object({
     amount: yup.string().required(),
+    positionId: yup.string().required(),
   })
   .required();
 

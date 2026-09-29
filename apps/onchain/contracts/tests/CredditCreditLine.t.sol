@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
-import {CredditCreditLine, MaxExposureExceeded, TooManyCollateralAssets, InsufficientCollateralBalance, NoActiveDebt, ExceedsCreditLimit, PositionNotLiquidatable, CloseFactorExceeded, InsufficientSeizableCollateral, PositionUnsafeAfterWithdrawal, RouterRepayShortfall} from "../core/CredditCreditLine.sol";
+import {CredditCreditLine, MaxExposureExceeded, TooManyCollateralAssets, InsufficientCollateralBalance, NoActiveDebt, ExceedsCreditLimit, PositionNotLiquidatable, InsufficientSeizableCollateral, PositionUnsafeAfterWithdrawal, RouterRepayShortfall, PositionDoesNotExist, NotPositionOwner} from "../core/CredditCreditLine.sol";
 import {CredditAssetRegistry, AssetNotListed} from "../core/CredditAssetRegistry.sol";
 import {CredditRiskEngine} from "../core/CredditRiskEngine.sol";
 import {CredditLendingRouter} from "../core/CredditLendingRouter.sol";
@@ -43,33 +43,39 @@ contract CredditCreditLineTest is Test {
     address public bob = address(0x3);
     address public liquidator = address(0x4);
 
+    event PositionOpened(uint256 indexed positionId, address indexed owner);
     event Borrowed(
-        address indexed user,
+        uint256 indexed positionId,
+        address indexed owner,
         uint256 amountWad,
         uint256 sharesMintedWad,
         uint256 newTotalDebtWad
     );
     event Repaid(
+        uint256 indexed positionId,
         address indexed payer,
-        address indexed user,
+        address indexed owner,
         uint256 amountRepaid,
         uint256 sharesBurned,
         uint256 newTotalDebt
     );
     event Liquidated(
+        uint256 indexed positionId,
         address indexed liquidator,
-        address indexed user,
-        address indexed collateralAsset,
+        address indexed owner,
+        address collateralAsset,
         uint256 debtAmount,
         uint256 collateralToSeize
     );
     event CollateralDeposited(
-        address indexed user,
+        uint256 indexed positionId,
+        address indexed depositor,
         address indexed asset,
         uint256 amount
     );
     event CollateralWithdrawn(
-        address indexed user,
+        uint256 indexed positionId,
+        address indexed recipient,
         address indexed asset,
         uint256 amount
     );
@@ -94,7 +100,6 @@ contract CredditCreditLineTest is Test {
         );
         registry = CredditAssetRegistry(address(regProxy));
 
-        // Grant ASSET_ADMIN_ROLE to admin if required by your registry implementation
         registry.grantRole(CredditRoles.ASSET_ADMIN_ROLE, admin);
 
         // Add Stock Tokens using addAsset
@@ -170,7 +175,7 @@ contract CredditCreditLineTest is Test {
     }
 
     /* =========================================================================
-     * INITIALIZATION TESTS
+     * INITIALIZATION & POSITION LIFECYCLE TESTS
      * ========================================================================= */
 
     function test_Initialize_Success() public view {
@@ -199,42 +204,64 @@ contract CredditCreditLineTest is Test {
         new ERC1967Proxy(address(creditLineImpl), initData);
     }
 
+    function test_OpenPosition_Success() public {
+        vm.startPrank(alice);
+        vm.expectEmit(true, true, false, true);
+        emit PositionOpened(1, alice);
+
+        uint256 posId = creditLine.openPosition();
+        vm.stopPrank();
+
+        assertEq(posId, 1);
+        assertEq(creditLine.getPositionOwner(posId), alice);
+    }
+
     /* =========================================================================
      * COLLATERAL DEPOSIT TESTS
      * ========================================================================= */
 
     function test_DepositCollateral_Success() public {
-        vm.expectEmit(true, true, false, true);
-        emit CollateralDeposited(alice, address(stockTokenA), 100e18);
+        vm.startPrank(alice);
+        uint256 posId = creditLine.openPosition();
 
-        vm.prank(alice);
-        creditLine.depositCollateral(address(stockTokenA), 100e18);
+        vm.expectEmit(true, true, true, true);
+        emit CollateralDeposited(posId, alice, address(stockTokenA), 100e18);
 
-        assertEq(creditLine.collateralOf(alice, address(stockTokenA)), 100e18);
+        creditLine.depositCollateral(posId, address(stockTokenA), 100e18);
+        vm.stopPrank();
+
+        assertEq(creditLine.collateralOf(posId, address(stockTokenA)), 100e18);
         assertEq(creditLine.totalDeposited(address(stockTokenA)), 100e18);
     }
 
     function test_DepositCollateral_RevertIf_ZeroAmount() public {
-        vm.prank(alice);
+        vm.startPrank(alice);
+        uint256 posId = creditLine.openPosition();
+
         vm.expectRevert(ZeroAmount.selector);
-        creditLine.depositCollateral(address(stockTokenA), 0);
+        creditLine.depositCollateral(posId, address(stockTokenA), 0);
+        vm.stopPrank();
     }
 
     function test_DepositCollateral_RevertIf_AssetNotListed() public {
+        vm.startPrank(alice);
+        uint256 posId = creditLine.openPosition();
         MockERC20 unlistedToken = new MockERC20("Unlisted", "UNL", 18, admin);
 
-        vm.prank(alice);
         vm.expectRevert(
             abi.encodeWithSelector(
                 AssetNotListed.selector,
                 address(unlistedToken)
             )
         );
-        creditLine.depositCollateral(address(unlistedToken), 10e18);
+        creditLine.depositCollateral(posId, address(unlistedToken), 10e18);
+        vm.stopPrank();
     }
 
     function test_DepositCollateral_RevertIf_AssetNotEnabled() public {
-        // Disable an existing listed asset in the registry
+        vm.prank(alice);
+        uint256 posId = creditLine.openPosition();
+
         vm.prank(admin);
         registry.toggleEnableStatus(address(stockTokenA));
 
@@ -245,14 +272,16 @@ contract CredditCreditLineTest is Test {
                 address(stockTokenA)
             )
         );
-        creditLine.depositCollateral(address(stockTokenA), 10e18);
+        creditLine.depositCollateral(posId, address(stockTokenA), 10e18);
     }
 
     function test_DepositCollateral_RevertIf_MaxExposureExceeded() public {
+        vm.startPrank(alice);
+        uint256 posId = creditLine.openPosition();
+
         uint256 overExposure = 1_000_001e18;
         stockTokenA.mint(alice, overExposure);
 
-        vm.prank(alice);
         vm.expectRevert(
             abi.encodeWithSelector(
                 MaxExposureExceeded.selector,
@@ -261,7 +290,8 @@ contract CredditCreditLineTest is Test {
                 1_000_000e18
             )
         );
-        creditLine.depositCollateral(address(stockTokenA), overExposure);
+        creditLine.depositCollateral(posId, address(stockTokenA), overExposure);
+        vm.stopPrank();
     }
 
     /* =========================================================================
@@ -270,21 +300,23 @@ contract CredditCreditLineTest is Test {
 
     function test_WithdrawCollateral_Success() public {
         vm.startPrank(alice);
-        creditLine.depositCollateral(address(stockTokenA), 100e18);
+        uint256 posId = creditLine.openPosition();
+        creditLine.depositCollateral(posId, address(stockTokenA), 100e18);
 
-        vm.expectEmit(true, true, false, true);
-        emit CollateralWithdrawn(alice, address(stockTokenA), 40e18);
+        vm.expectEmit(true, true, true, true);
+        emit CollateralWithdrawn(posId, alice, address(stockTokenA), 40e18);
 
-        creditLine.withdrawCollateral(address(stockTokenA), 40e18);
+        creditLine.withdrawCollateral(posId, address(stockTokenA), 40e18);
         vm.stopPrank();
 
-        assertEq(creditLine.collateralOf(alice, address(stockTokenA)), 60e18);
+        assertEq(creditLine.collateralOf(posId, address(stockTokenA)), 60e18);
         assertEq(creditLine.totalDeposited(address(stockTokenA)), 60e18);
     }
 
     function test_WithdrawCollateral_RevertIf_InsufficientBalance() public {
         vm.startPrank(alice);
-        creditLine.depositCollateral(address(stockTokenA), 50e18);
+        uint256 posId = creditLine.openPosition();
+        creditLine.depositCollateral(posId, address(stockTokenA), 50e18);
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -294,24 +326,38 @@ contract CredditCreditLineTest is Test {
                 50e18
             )
         );
-        creditLine.withdrawCollateral(address(stockTokenA), 100e18);
+        creditLine.withdrawCollateral(posId, address(stockTokenA), 100e18);
         vm.stopPrank();
+    }
+
+    function test_WithdrawCollateral_RevertIf_NotOwner() public {
+        vm.prank(alice);
+        uint256 posId = creditLine.openPositionAndDeposit(
+            address(stockTokenA),
+            100e18
+        );
+
+        vm.prank(bob);
+        vm.expectRevert(
+            abi.encodeWithSelector(NotPositionOwner.selector, posId, bob)
+        );
+        creditLine.withdrawCollateral(posId, address(stockTokenA), 50e18);
     }
 
     function test_WithdrawCollateral_RevertIf_PositionUnsafeAfterWithdrawal()
         public
     {
         vm.startPrank(alice);
-        creditLine.depositCollateral(address(stockTokenA), 100e18);
+        uint256 posId = creditLine.openPosition();
+        creditLine.depositCollateral(posId, address(stockTokenA), 100e18);
 
-        riskEngine.setCreditLimit(alice, 10_000e18);
-        creditLine.borrow(5_000e18);
+        riskEngine.setCreditLimit(posId, 10_000e18);
+        creditLine.borrow(posId, 5_000e18);
 
-        // Mock remaining collateral being unsafe to support current debt
-        riskEngine.setRiskAdjustedValue(alice, 4_000e18);
+        riskEngine.setRiskAdjustedValue(posId, 4_000e18);
 
         vm.expectRevert(PositionUnsafeAfterWithdrawal.selector);
-        creditLine.withdrawCollateral(address(stockTokenA), 50e18);
+        creditLine.withdrawCollateral(posId, address(stockTokenA), 50e18);
         vm.stopPrank();
     }
 
@@ -321,25 +367,41 @@ contract CredditCreditLineTest is Test {
 
     function test_Borrow_Success() public {
         vm.startPrank(alice);
-        creditLine.depositCollateral(address(stockTokenA), 100e18);
+        uint256 posId = creditLine.openPosition();
+        creditLine.depositCollateral(posId, address(stockTokenA), 100e18);
 
-        riskEngine.setCreditLimit(alice, 10_000e18);
+        riskEngine.setCreditLimit(posId, 10_000e18);
 
-        vm.expectEmit(true, false, false, true);
-        emit Borrowed(alice, 5_000e18, 5_000e18, 5_000e18);
+        vm.expectEmit(true, true, false, true);
+        emit Borrowed(posId, alice, 5_000e18, 5_000e18, 5_000e18);
 
-        creditLine.borrow(5_000e18);
+        creditLine.borrow(posId, 5_000e18);
         vm.stopPrank();
 
-        assertEq(creditLine.debtShares(alice), 5_000e18);
+        assertEq(creditLine.debtShares(posId), 5_000e18);
         assertEq(creditLine.totalDebtShares(), 5_000e18);
+    }
+
+    function test_Borrow_RevertIf_NotPositionOwner() public {
+        vm.prank(alice);
+        uint256 posId = creditLine.openPositionAndDeposit(
+            address(stockTokenA),
+            100e18
+        );
+
+        vm.prank(bob);
+        vm.expectRevert(
+            abi.encodeWithSelector(NotPositionOwner.selector, posId, bob)
+        );
+        creditLine.borrow(posId, 1_000e18);
     }
 
     function test_Borrow_RevertIf_ExceedsCreditLimit() public {
         vm.startPrank(alice);
-        creditLine.depositCollateral(address(stockTokenA), 100e18);
+        uint256 posId = creditLine.openPosition();
+        creditLine.depositCollateral(posId, address(stockTokenA), 100e18);
 
-        riskEngine.setCreditLimit(alice, 5_000e18);
+        riskEngine.setCreditLimit(posId, 5_000e18);
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -348,40 +410,45 @@ contract CredditCreditLineTest is Test {
                 5_000e18
             )
         );
-        creditLine.borrow(6_000e18);
+        creditLine.borrow(posId, 6_000e18);
         vm.stopPrank();
     }
 
     function test_Repay_FullRepayment() public {
         vm.startPrank(alice);
-        creditLine.depositCollateral(address(stockTokenA), 100e18);
-        riskEngine.setCreditLimit(alice, 10_000e18);
-        creditLine.borrow(5_000e18);
+        uint256 posId = creditLine.openPosition();
+        creditLine.depositCollateral(posId, address(stockTokenA), 100e18);
+        riskEngine.setCreditLimit(posId, 10_000e18);
+        creditLine.borrow(posId, 5_000e18);
 
-        creditLine.repay(5_000e18);
+        creditLine.repay(posId, 5_000e18);
         vm.stopPrank();
 
-        assertEq(creditLine.debtShares(alice), 0);
+        assertEq(creditLine.debtShares(posId), 0);
         assertEq(creditLine.totalDebtShares(), 0);
     }
 
     function test_Repay_PartialRepayment() public {
         vm.startPrank(alice);
-        creditLine.depositCollateral(address(stockTokenA), 100e18);
-        riskEngine.setCreditLimit(alice, 10_000e18);
-        creditLine.borrow(5_000e18);
+        uint256 posId = creditLine.openPosition();
+        creditLine.depositCollateral(posId, address(stockTokenA), 100e18);
+        riskEngine.setCreditLimit(posId, 10_000e18);
+        creditLine.borrow(posId, 5_000e18);
 
-        creditLine.repay(2_000e18);
+        creditLine.repay(posId, 2_000e18);
         vm.stopPrank();
 
-        assertEq(creditLine.debtShares(alice), 3_000e18);
+        assertEq(creditLine.debtShares(posId), 3_000e18);
         assertEq(creditLine.totalDebtShares(), 3_000e18);
     }
 
     function test_Repay_RevertIf_NoActiveDebt() public {
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(NoActiveDebt.selector, alice));
-        creditLine.repay(100e18);
+        vm.startPrank(alice);
+        uint256 posId = creditLine.openPosition();
+
+        vm.expectRevert(abi.encodeWithSelector(NoActiveDebt.selector, posId));
+        creditLine.repay(posId, 100e18);
+        vm.stopPrank();
     }
 
     /* =========================================================================
@@ -389,64 +456,43 @@ contract CredditCreditLineTest is Test {
      * ========================================================================= */
 
     function test_Liquidate_Success() public {
-        // Alice deposits collateral and borrows USDG
         vm.startPrank(alice);
-        creditLine.depositCollateral(address(stockTokenA), 100e18); // Value: $15,000
-        riskEngine.setCreditLimit(alice, 10_000e18);
-        creditLine.borrow(8_000e18);
+        uint256 posId = creditLine.openPosition();
+        creditLine.depositCollateral(posId, address(stockTokenA), 100e18); // Value: $15,000
+        riskEngine.setCreditLimit(posId, 10_000e18);
+        creditLine.borrow(posId, 8_000e18);
         vm.stopPrank();
 
-        // Position becomes liquidatable due to price drop or risk adjustment
-        riskEngine.setIsLiquidatable(alice, true);
+        riskEngine.setIsLiquidatable(posId, true);
 
-        uint256 debtToCover = 4_000e18; // Repay 50% (Close factor is 50%)
+        uint256 debtToCover = 4_000e18; // Repay 50%
 
         vm.prank(liquidator);
-        creditLine.liquidate(alice, address(stockTokenA), debtToCover);
+        creditLine.liquidate(posId, address(stockTokenA), debtToCover);
 
-        assertEq(creditLine.debtShares(alice), 4_000e18);
+        assertEq(creditLine.debtShares(posId), 4_000e18);
         assertGt(stockTokenA.balanceOf(liquidator), 0);
     }
 
     function test_Liquidate_RevertIf_PositionNotLiquidatable() public {
         vm.startPrank(alice);
-        creditLine.depositCollateral(address(stockTokenA), 100e18);
-        riskEngine.setCreditLimit(alice, 10_000e18);
-        creditLine.borrow(5_000e18);
+        uint256 posId = creditLine.openPosition();
+        creditLine.depositCollateral(posId, address(stockTokenA), 100e18);
+        riskEngine.setCreditLimit(posId, 10_000e18);
+        creditLine.borrow(posId, 5_000e18);
         vm.stopPrank();
 
-        riskEngine.setIsLiquidatable(alice, false);
+        riskEngine.setIsLiquidatable(posId, false);
 
         vm.prank(liquidator);
         vm.expectRevert(
             abi.encodeWithSelector(
                 PositionNotLiquidatable.selector,
-                alice,
+                posId,
                 5_000e18
             )
         );
-        creditLine.liquidate(alice, address(stockTokenA), 2_000e18);
-    }
-
-    function test_Liquidate_RevertIf_CloseFactorExceeded() public {
-        vm.startPrank(alice);
-        creditLine.depositCollateral(address(stockTokenA), 100e18);
-        riskEngine.setCreditLimit(alice, 10_000e18);
-        creditLine.borrow(8_000e18);
-        vm.stopPrank();
-
-        riskEngine.setIsLiquidatable(alice, true);
-
-        // Attempt to liquidate 60% when max close factor is 50% (4,000e18)
-        vm.prank(liquidator);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                CloseFactorExceeded.selector,
-                4_800e18,
-                4_000e18
-            )
-        );
-        creditLine.liquidate(alice, address(stockTokenA), 4_800e18);
+        creditLine.liquidate(posId, address(stockTokenA), 2_000e18);
     }
 
     /* =========================================================================
@@ -454,21 +500,24 @@ contract CredditCreditLineTest is Test {
      * ========================================================================= */
 
     function test_Pause_PreventsActions() public {
+        vm.prank(alice);
+        uint256 posId = creditLine.openPosition();
+
         vm.prank(admin);
         creditLine.pause();
 
         vm.startPrank(alice);
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        creditLine.depositCollateral(address(stockTokenA), 10e18);
+        creditLine.depositCollateral(posId, address(stockTokenA), 10e18);
 
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        creditLine.withdrawCollateral(address(stockTokenA), 10e18);
+        creditLine.withdrawCollateral(posId, address(stockTokenA), 10e18);
 
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        creditLine.borrow(100e18);
+        creditLine.borrow(posId, 100e18);
 
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        creditLine.repay(100e18);
+        creditLine.repay(posId, 100e18);
         vm.stopPrank();
     }
 }

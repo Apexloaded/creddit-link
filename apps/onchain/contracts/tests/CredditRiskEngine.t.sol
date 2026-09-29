@@ -8,26 +8,25 @@ import {CredditAssetRegistry} from "../core/CredditAssetRegistry.sol";
 import {ZeroAddressProvided} from "../core/CredditErrors.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {WadMath} from "../libraries/WadMath.sol";
-import {ICollateralSource} from "../interfaces/ICollateralSource.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
 import {MockOracle} from "../mock/MockOracle.sol";
 
-contract MockCollateralSource is ICollateralSource {
-    mapping(address => mapping(address => uint256)) public collateral;
+contract MockCollateralSource {
+    mapping(uint256 => mapping(address => uint256)) public collateral;
 
     function setCollateral(
-        address user,
+        uint256 positionId,
         address asset,
         uint256 amount
     ) external {
-        collateral[user][asset] = amount;
+        collateral[positionId][asset] = amount;
     }
 
     function collateralOf(
-        address user,
+        uint256 positionId,
         address asset
     ) external view returns (uint256) {
-        return collateral[user][asset];
+        return collateral[positionId][asset];
     }
 }
 
@@ -45,6 +44,8 @@ contract CredditRiskEngineTest is Test {
 
     address public admin = address(0x111);
     address public alice = address(0x222);
+
+    uint256 public constant TEST_POSITION_ID = 1;
 
     address public mockTokenA = address(0xA1);
     address public mockTokenB = address(0xB2);
@@ -296,11 +297,11 @@ contract CredditRiskEngineTest is Test {
         // CF = 70% (0.70e18)
         // Expected Risk-Adjusted Value = $4000 * 0.70 = $2800 WAD (2800e18)
         oracle.setPrice(mockTokenA, 2000e18);
-        source.setCollateral(alice, mockTokenA, 2e18);
+        source.setCollateral(TEST_POSITION_ID, mockTokenA, 2e18);
 
         (uint256 value, , ) = riskEngine.riskAdjustedValue(
             address(source),
-            alice,
+            TEST_POSITION_ID,
             false
         );
         assertEq(value, 2800e18);
@@ -313,11 +314,11 @@ contract CredditRiskEngineTest is Test {
         // CF = 80% (0.80e18)
         // Expected Risk-Adjusted Value = 1000e18 * 0.80 = 800e18
         oracle.setPrice(mockTokenB, 1e18);
-        source.setCollateral(alice, mockTokenB, 1000e6);
+        source.setCollateral(TEST_POSITION_ID, mockTokenB, 1000e6);
 
         (uint256 value, , ) = riskEngine.riskAdjustedValue(
             address(source),
-            alice,
+            TEST_POSITION_ID,
             false
         );
         assertEq(value, 800e18);
@@ -328,25 +329,25 @@ contract CredditRiskEngineTest is Test {
         // Credit Utilization Cap = 90% (0.90e18)
         // Expected Credit Limit = $2800 * 0.90 = $2520 WAD
         oracle.setPrice(mockTokenA, 2000e18);
-        source.setCollateral(alice, mockTokenA, 2e18);
+        source.setCollateral(TEST_POSITION_ID, mockTokenA, 2e18);
 
-        uint256 limit = riskEngine.creditLimit(address(source), alice);
+        uint256 limit = riskEngine.creditLimit(address(source), TEST_POSITION_ID);
         assertEq(limit, 2520e18);
     }
 
     function test_IsLiquidatable_Evaluation() public {
         // Setup Token A: Collateral 2 units @ $2000 = $4000 total
-        // Risk-Adjusted Value (Liquidation value using CF) = $2800
+        // Liquidation Threshold = 75% -> Liquidation Value = $4000 * 0.75 = $3000 WAD
         oracle.setPrice(mockTokenA, 2000e18);
-        source.setCollateral(alice, mockTokenA, 2e18);
+        source.setCollateral(TEST_POSITION_ID, mockTokenA, 2e18);
 
         // 1. Zero debt is never liquidatable
-        assertFalse(riskEngine.isLiquidatable(address(source), alice, 0));
+        assertFalse(riskEngine.isLiquidatable(address(source), TEST_POSITION_ID, 0));
 
-        // 2. Debt <= Liquidation Value ($2800) -> Healthy
-        assertFalse(riskEngine.isLiquidatable(address(source), alice, 2800e18));
+        // 2. Debt <= Liquidation Value ($3000) -> Healthy
+        assertFalse(riskEngine.isLiquidatable(address(source), TEST_POSITION_ID, 3000e18));
 
-        // 3. Debt > Liquidation Value ($2801) -> Liquidatable
-        assertTrue(riskEngine.isLiquidatable(address(source), alice, 2801e18));
+        // 3. Debt > Liquidation Value ($3001) -> Liquidatable
+        assertTrue(riskEngine.isLiquidatable(address(source), TEST_POSITION_ID, 3001e18));
     }
 }

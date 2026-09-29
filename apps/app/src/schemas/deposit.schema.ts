@@ -1,9 +1,10 @@
-// deposit.schema.ts
 import * as yup from "yup";
 import { yupResolver } from "@hookform/resolvers/yup";
+import { type Address, getAddress, isAddress } from "viem";
 
 export const depositSchema = yup
   .object({
+    positionId: yup.string().optional(),
     amount: yup
       .string()
       .required("Amount is required")
@@ -31,7 +32,7 @@ export const depositSchema = yup
           return parsed <= balance;
         },
       ),
-    useAsCollateral: yup.boolean().default(true),
+    useAsCollateral: yup.boolean().optional().default(true),
   })
   .required();
 

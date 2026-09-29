@@ -1,5 +1,9 @@
 import { RawAssetConfig } from "@/contracts/interfaces/asset-registry";
 
+export interface FormattedAmount {
+  raw: bigint;
+  formatted: string;
+}
 export interface IAsset extends Omit<RawAssetConfig, "maxExposure"> {
   symbol: string;
   balance: bigint;
