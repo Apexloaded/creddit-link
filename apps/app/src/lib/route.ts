@@ -4,13 +4,14 @@ export const routes = {
   },
   app: {
     dashboard: "/",
-    deposit: "/deposit",
+    deposit: (positionId?: string) =>
+      `/deposit${positionId ? `?position=${positionId}` : ""}`,
     borrow: "/borrow",
     earn: "/earn",
   },
 } as const;
 
-const modalRoutes: string[] = [routes.app.deposit];
+const modalRoutes: string[] = [routes.app.deposit()];
 
 export const isModalRoutes = (path: string) => {
   return modalRoutes.includes(path);

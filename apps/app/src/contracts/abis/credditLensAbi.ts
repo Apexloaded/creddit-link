@@ -87,6 +87,11 @@ export const credditLensAbi = [
           },
           {
             internalType: "bool",
+            name: "isClosed",
+            type: "bool",
+          },
+          {
+            internalType: "bool",
             name: "isStale",
             type: "bool",
           },
@@ -94,6 +99,36 @@ export const credditLensAbi = [
             internalType: "bool",
             name: "isValid",
             type: "bool",
+          },
+          {
+            internalType: "bool",
+            name: "isLiquidated",
+            type: "bool",
+          },
+          {
+            internalType: "uint256",
+            name: "cumulativeBorrowed",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "cumulativeRepaid",
+            type: "uint256",
+          },
+          {
+            internalType: "uint64",
+            name: "liquidatedAt",
+            type: "uint64",
+          },
+          {
+            internalType: "uint64",
+            name: "openedAt",
+            type: "uint64",
+          },
+          {
+            internalType: "uint64",
+            name: "closedAt",
+            type: "uint64",
           },
           {
             components: [
@@ -190,6 +225,11 @@ export const credditLensAbi = [
           },
           {
             internalType: "bool",
+            name: "isClosed",
+            type: "bool",
+          },
+          {
+            internalType: "bool",
             name: "isStale",
             type: "bool",
           },
@@ -197,6 +237,36 @@ export const credditLensAbi = [
             internalType: "bool",
             name: "isValid",
             type: "bool",
+          },
+          {
+            internalType: "bool",
+            name: "isLiquidated",
+            type: "bool",
+          },
+          {
+            internalType: "uint256",
+            name: "cumulativeBorrowed",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "cumulativeRepaid",
+            type: "uint256",
+          },
+          {
+            internalType: "uint64",
+            name: "liquidatedAt",
+            type: "uint64",
+          },
+          {
+            internalType: "uint64",
+            name: "openedAt",
+            type: "uint64",
+          },
+          {
+            internalType: "uint64",
+            name: "closedAt",
+            type: "uint64",
           },
           {
             components: [
@@ -364,6 +434,11 @@ export const credditLensAbi = [
           },
           {
             internalType: "bool",
+            name: "isClosed",
+            type: "bool",
+          },
+          {
+            internalType: "bool",
             name: "isStale",
             type: "bool",
           },
@@ -371,6 +446,36 @@ export const credditLensAbi = [
             internalType: "bool",
             name: "isValid",
             type: "bool",
+          },
+          {
+            internalType: "bool",
+            name: "isLiquidated",
+            type: "bool",
+          },
+          {
+            internalType: "uint256",
+            name: "cumulativeBorrowed",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "cumulativeRepaid",
+            type: "uint256",
+          },
+          {
+            internalType: "uint64",
+            name: "liquidatedAt",
+            type: "uint64",
+          },
+          {
+            internalType: "uint64",
+            name: "openedAt",
+            type: "uint64",
+          },
+          {
+            internalType: "uint64",
+            name: "closedAt",
+            type: "uint64",
           },
           {
             components: [

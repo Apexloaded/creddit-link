@@ -309,3 +309,16 @@ export function formatNumericInput(
   if (decPart !== undefined) return `${formattedInt}.${decPart}`;
   return hasTrailingDot ? `${formattedInt}.` : formattedInt;
 }
+
+export function addressGradient(addr: string) {
+  // deterministic gradient from the address bytes
+  const h1 = parseInt(addr.slice(2, 6), 16) % 360;
+  const h2 = (h1 + 60) % 360;
+  return `linear-gradient(135deg, hsl(${h1} 70% 55%), hsl(${h2} 70% 45%))`;
+}
+
+export function fromBlockDate(timestamp: bigint | number) {
+  if (Number(timestamp) == 0) return null;
+  const ms = Number(timestamp) * 1000;
+  return new Date(ms);
+}

@@ -7,6 +7,7 @@ import {
   ShieldAlert,
   AlertCircle,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 interface PositionHealthCardProps {
   portfolio?: IPortfolio;
@@ -47,19 +48,28 @@ export function PositionHealthCard({ portfolio }: PositionHealthCardProps) {
       ltv >= liquidationThreshold * 0.85);
 
   return (
-    <section className="border lg:border-l-0 border-foreground/10 bg-background p-6">
+    <section className="border rounded-xl border-foreground/10 bg-background p-6 shadow-md">
       <div className="flex items-start justify-between">
         <div className="flex items-center justify-between flex-1">
           <div className="flex items-center gap-2">
-            <p className="text-sm text-foreground/50">Position Health</p>
+            <p className="text-sm text-foreground">Position Health</p>
             {portfolio?.isStale && (
-              <span
-                className="inline-flex items-center gap-1 text-[11px] text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full"
-                title="One or more oracle prices are stale"
-              >
-                <AlertCircle className="h-3 w-3" />
-                Stale Price
-              </span>
+              <Tooltip>
+                <TooltipTrigger>
+                  <span
+                    className="inline-flex items-center gap-1 text-[11px] text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full"
+                    title=""
+                  >
+                    <AlertCircle className="h-3 w-3" />
+                    Stale Price
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className={"w-60"}>
+                  <p className="text-center">
+                    One or more oracle prices are stale
+                  </p>
+                </TooltipContent>
+              </Tooltip>
             )}
           </div>
 
@@ -93,25 +103,25 @@ export function PositionHealthCard({ portfolio }: PositionHealthCardProps) {
                 </span>
               </>
             )}
-            <div className="flex items-center justify-between">
+            {/* <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-foreground">
                 {isInfiniteHealth ? "∞" : healthFactorDecimal.toFixed(2)}
               </span>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>
 
       <div className="space-y-4 pt-5">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-foreground/50">LTV</span>
+          <span className="text-sm text-foreground">LTV</span>
           <span className="text-sm font-medium text-foreground">
             {ltv.toFixed(1)}%
           </span>
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-sm text-foreground/50">
+          <span className="text-sm text-foreground">
             Liquidation Threshold
           </span>
           <span className="text-sm font-medium text-foreground">

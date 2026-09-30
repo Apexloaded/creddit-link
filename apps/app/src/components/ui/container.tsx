@@ -11,7 +11,7 @@ export function Container({
   return (
     <div
       data-slot="container"
-      className={cn("", className)}
+      className={cn("h-full overflow-scroll", className)}
       {...props}
     >
       {children}

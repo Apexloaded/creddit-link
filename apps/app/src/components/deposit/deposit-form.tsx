@@ -1,8 +1,14 @@
 "use client";
 
 import { useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
-import { ArrowUpDownIcon, ChevronsUpDownIcon, InfoIcon } from "lucide-react";
+import {
+  ArrowUpDownIcon,
+  ChevronsUpDownIcon,
+  InfoIcon,
+  ShieldAlert,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuSeparator } from "../ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -27,7 +33,10 @@ interface DepositFormProps {
 }
 
 export function DepositForm({ onClose }: DepositFormProps) {
-  const { assets, selectedAsset, setSelectedAsset, isListLoading } =
+  const searchParams = useSearchParams();
+  const rawPositionParam = searchParams.get("position");
+
+  const { assets, selectedAsset, setSelectedAsset, isListLoading, positions } =
     useCreddit();
   const { useDeposit } = useCredditLine();
   const { deposit, isProcessing, stepStatus } = useDeposit(
@@ -41,13 +50,31 @@ export function DepositForm({ onClose }: DepositFormProps) {
     clearErrors,
     watch,
     control,
-    formState: { errors, isValid },
+    formState: { errors },
   } = useForm<DepositSchemaType>({
     resolver: depositSchemaResolver,
     context: { maxBalance: selectedAsset?.balanceFormatted },
-    defaultValues: { amount: "" },
+    defaultValues: { amount: "", positionId: undefined },
     mode: "onChange",
   });
+
+  // Validate the position ID against user positions list
+  const activePosition = useMemo(() => {
+    if (!rawPositionParam || !positions?.length) return undefined;
+    return positions.find(
+      (pos: any) =>
+        String(pos.id).toLowerCase() === rawPositionParam.toLowerCase(),
+    );
+  }, [rawPositionParam, positions]);
+
+  // Keep form value synced with validated position ID
+  useEffect(() => {
+    if (activePosition) {
+      setValue("positionId", activePosition.id.toString());
+    } else {
+      setValue("positionId", undefined);
+    }
+  }, [activePosition, setValue]);
 
   const amount = watch("amount");
 
@@ -75,7 +102,6 @@ export function DepositForm({ onClose }: DepositFormProps) {
         message: "Amount exceeds available balance",
       });
     } else if (errors.amount?.type === "balanceExceeded") {
-      // Only clear OUR error type — never touch a schema-driven error.
       clearErrors("amount");
     }
   }, [
@@ -89,8 +115,7 @@ export function DepositForm({ onClose }: DepositFormProps) {
   const isBalanceExceeded = errors.amount?.type === "within-balance";
 
   const handleSetMax = () => {
-    if (selectedAsset?.balance) {
-      // Raw, unformatted balance — keep form state clean.
+    if (selectedAsset?.balanceFormatted) {
       setValue("amount", String(selectedAsset.balanceFormatted), {
         shouldValidate: true,
       });
@@ -133,7 +158,18 @@ export function DepositForm({ onClose }: DepositFormProps) {
         </p>
       </div>
 
-      <div className="flex flex-col gap-2 bg-accent rounded-3xl px-6 py-4 mt-3">
+      {/* Position Banner UI */}
+      {activePosition && (
+        <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 p-3 text-sm text-primary">
+          <ShieldAlert size={18} className="shrink-0" />
+          <span>
+            Depositing into existing position{" "}
+            <strong>#{activePosition.id}</strong>
+          </span>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2 bg-accent rounded-3xl px-6 py-4 mt-1">
         <p className="text-sm font-medium">Deposit</p>
         <div className="flex justify-between items-center gap-2">
           <CurrencyInputField
@@ -142,7 +178,6 @@ export function DepositForm({ onClose }: DepositFormProps) {
             className="md:text-5xl flex-1 text-primary h-14 p-0 rounded-none shadow-none focus-visible:ring-0 border-0 caret-primary"
           />
 
-          {/* Asset Selector Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger>
               <div className="flex gap-1 items-center transition-colors duration-200 hover:bg-background/80 cursor-pointer bg-background rounded-full px-3 py-2 select-none">

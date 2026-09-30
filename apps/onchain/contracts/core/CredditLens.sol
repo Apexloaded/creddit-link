@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
+import {CredditCore} from "./CredditCore.sol";
 import {CredditRiskEngine} from "./CredditRiskEngine.sol";
-import {ICredditCreditLine} from "../interfaces/ICredditCreditLine.sol";
+import {ICredditCreditLine, Position} from "../interfaces/ICredditCreditLine.sol";
 import {CredditLiquidityPool} from "../core/CredditLiquidityPool.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
 import {WadMath} from "../libraries/WadMath.sol";
@@ -10,7 +11,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 
 /// @title CredditLens
 /// @notice Read-only helper contract for dApp frontends, explorers, and liquidator bots
-contract CredditLens {
+contract CredditLens is CredditCore {
     using WadMath for uint256;
 
     ICredditCreditLine public cl;
@@ -33,8 +34,15 @@ contract CredditLens {
         uint256 liquidationValueWad;
         uint256 healthFactorWad; // (Liquidation Value / Debt) in WAD (1e18 = 100% health threshold)
         bool isLiquidatable;
+        bool isClosed;
         bool isStale; // True if any collateral price is stale
         bool isValid; // True if all collaterals are valid
+        bool isLiquidated;
+        uint256 cumulativeBorrowed;
+        uint256 cumulativeRepaid;
+        uint64 liquidatedAt;
+        uint64 openedAt;
+        uint64 closedAt;
         CollateralDetail[] collaterals;
     }
 
@@ -52,7 +60,13 @@ contract CredditLens {
         bool isStale; // True if any collateral price is stale
     }
 
-    constructor(address credditLine, address liquidityPool) {
+    /// @notice Initializes the contract with the provided addresses.
+    /// @param credditLine Address of the CreditLine contract.
+    /// @param liquidityPool Address of the LiquidityPool contract.
+    function initialize(
+        address credditLine,
+        address liquidityPool
+    ) external initializer {
         cl = ICredditCreditLine(credditLine);
         lp = CredditLiquidityPool(liquidityPool);
     }
@@ -184,7 +198,8 @@ contract CredditLens {
         address owner = cl.getPositionOwner(currentId);
         if (owner == address(0)) return summary;
 
-        uint256 debtWad = cl.positionDebt(currentId);
+        Position memory pos = cl.positions(currentId);
+        uint256 debtWad = cl.currentPositionDebt(currentId);
 
         (uint256 creditLimit, , ) = riskEngine.creditLimitSafe(
             address(cl),
@@ -224,7 +239,14 @@ contract CredditLens {
                 isLiquidatable: liquidatable,
                 isStale: isStale,
                 isValid: isValid,
-                collaterals: collaterals
+                collaterals: collaterals,
+                isClosed: pos.isClosed,
+                isLiquidated: pos.isLiquidated,
+                cumulativeBorrowed: pos.cumulativeBorrowed,
+                cumulativeRepaid: pos.cumulativeRepaid,
+                liquidatedAt: pos.liquidatedAt,
+                openedAt: pos.openedAt,
+                closedAt: pos.closedAt
             });
     }
 

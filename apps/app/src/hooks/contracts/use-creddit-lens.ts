@@ -5,11 +5,12 @@ import { useConnection, useReadContract } from "wagmi";
 import {
   CREDDIT_PROTOCOL_ADDRESSES,
   ORACLE_PRICE_DECIMALS,
+  Stock,
   TOKEN_DECIMALS,
 } from "@/config";
 import { credditLensAbi } from "@/contracts/abis/credditLensAbi";
 import { IPortfolio, IPosition } from "@/interfaces/creddit-lens.interface";
-import { toFormattedAmount } from "@/lib/utils";
+import { fromBlockDate, toFormattedAmount } from "@/lib/utils";
 
 export type RawPortfolioSummary = ContractFunctionReturnType<
   typeof credditLensAbi,
@@ -123,12 +124,26 @@ function parsePositionSummary(pos: RawPositionSummary): IPosition {
       ORACLE_PRICE_DECIMALS,
       isInfiniteHealth ? "∞" : undefined,
     ),
+    isInfiniteHealth,
     isLiquidatable: pos.isLiquidatable,
     collaterals: pos.collaterals.map((col) => ({
-      symbol: col.symbol,
+      symbol: col.symbol as Stock,
       asset: col.asset,
       value: toFormattedAmount(col.amount),
     })),
+    isClosed: pos.isClosed,
+    isLiquidated: pos.isLiquidated,
+    cumulativeBorrowed: toFormattedAmount(
+      pos.cumulativeBorrowed,
+      TOKEN_DECIMALS.USDG,
+    ),
+    cumulativeRepaid: toFormattedAmount(
+      pos.cumulativeRepaid,
+      TOKEN_DECIMALS.USDG,
+    ),
+    liquidatedAt: fromBlockDate(pos.liquidatedAt),
+    openedAt: fromBlockDate(pos.openedAt),
+    closedAt: fromBlockDate(pos.closedAt),
   };
 }
 

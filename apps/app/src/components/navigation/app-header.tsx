@@ -6,7 +6,7 @@ import { WalletConnect } from "../wallet/wallet-connect"
 
 export function AppHeader() {
   return (
-    <header className="flex h-16 px-8 shrink-0 items-center gap-2 transition-[width,height] ease-linear">
+    <header className="flex h-16 px-8 stick top-0 shrink-0 items-center gap-2 transition-[width,height] ease-linear">
       <div className="flex flex-1 items-center justify-between gap-4">
         <div className="relative flex items-center">
           <SearchIcon size={16} className="absolute left-3 text-foreground/50" />

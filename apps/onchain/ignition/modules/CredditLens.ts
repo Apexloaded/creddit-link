@@ -1,8 +1,12 @@
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
+import CredditProtocolModule from "./CredditProtocol.js"; // Import main module to reference proxy address
 
 export default buildModule("CredditLensModule", (m) => {
-  const credditLine = "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f"
-  const credditLens = m.contract("CredditLens", [credditLine], {
+  // 1. Fetch the existing proxy address deployed in CredditProtocol
+  const {
+    creditLine, pool,
+  } = m.useModule(CredditProtocolModule);
+  const credditLens = m.contract("CredditLens", [creditLine, pool], {
     id: "CredditLensImpl",
   });
   return { credditLens };

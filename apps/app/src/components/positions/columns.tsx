@@ -1,0 +1,423 @@
+"use client";
+
+import { useState } from "react";
+import { IPosition } from "@/interfaces/creddit-lens.interface";
+import { createColumnHelper } from "@tanstack/react-table";
+import {
+  Check,
+  Copy,
+  HandCoinsIcon,
+  LayersArrowUpIcon,
+  PlusCircleIcon,
+  Zap,
+} from "lucide-react";
+import { DataTableFeatures } from "../table/data-table-features";
+import {
+  addressGradient,
+  cn,
+  formatCurrency,
+  toFormattedAmount,
+} from "@/lib/utils";
+import { Stock, TOKEN_DECIMALS, toRhLogo } from "@/config";
+import {
+  HoverCard,
+  HoverCardTrigger,
+  HoverCardContent,
+} from "../ui/hover-card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import {
+  ColumnActionButton,
+  ColumnHeaderLeft,
+  ColumnHeaderRight,
+} from "../table/data-table-column";
+import { BlockDate } from "../ui/block-date";
+
+const columnHelper = createColumnHelper<DataTableFeatures, IPosition>();
+
+export interface PositionActions {
+  onDeposit?: (position: IPosition) => void;
+  onRepay?: (position: IPosition) => void;
+  onLiquidate?: (position: IPosition) => void;
+}
+
+/* ----------------------------- helpers ----------------------------- */
+
+function TokenLogo({
+  symbol,
+  size = 20,
+  className = "",
+}: {
+  symbol: Stock;
+  size?: number;
+  className?: string;
+}) {
+  console.log("TOKEN SYMBOL :: :: ", symbol);
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={toRhLogo(symbol)}
+      alt={symbol}
+      title={symbol}
+      width={size}
+      height={size}
+      className={`rounded-full bg-white object-cover ring-2 ring-white dark:ring-slate-900 ${className}`}
+      onError={(e) => {
+        e.currentTarget.style.visibility = "hidden";
+      }}
+    />
+  );
+}
+
+function AddressCell({ addr }: { addr: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    await navigator.clipboard.writeText(addr);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
+
+  return (
+    <div className="group flex items-center gap-2">
+      <span
+        className="h-6 w-6 shrink-0 rounded-full"
+        style={{ background: addressGradient(addr) }}
+      />
+      <span
+        className="font-mono text-xs text-slate-700 dark:text-slate-300"
+        title={addr}
+      >
+        {`${addr.slice(0, 6)}…${addr.slice(-4)}`}
+      </span>
+      <button
+        onClick={copy}
+        aria-label="Copy address"
+        className="rounded p-1 text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100 dark:hover:bg-slate-800"
+      >
+        {copied ? (
+          <Check className="h-3 w-3 text-green-600" />
+        ) : (
+          <Copy className="h-3 w-3" />
+        )}
+      </button>
+    </div>
+  );
+}
+
+const MAX_ICONS = 3;
+
+function CollateralHoverCard({ position }: { position: IPosition }) {
+  const { collaterals, collateralUsd } = position;
+  const visible = collaterals.slice(0, MAX_ICONS);
+  const extra = collaterals.length - visible.length;
+
+  return (
+    <HoverCard>
+      <HoverCardTrigger delay={100} closeDelay={80}>
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`View ${collaterals.length} collateral assets`}
+          className="flex items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+        >
+          <div className="flex -space-x-2">
+            {visible.map((cl, i) => (
+              <TokenLogo
+                key={`${cl.symbol}-${i}`}
+                symbol={cl.symbol}
+                size={24}
+              />
+            ))}
+          </div>
+          {extra > 0 && (
+            <span className="ml-1.5 text-xs font-medium tabular-nums text-slate-500 dark:text-slate-400">
+              +{extra}
+            </span>
+          )}
+        </button>
+      </HoverCardTrigger>
+
+      <HoverCardContent align="start" sideOffset={8} className="w-72 p-0">
+        {/* header */}
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+          <div>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Collateral
+            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Position #{position.id}
+            </p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            {collaterals.length} {collaterals.length === 1 ? "asset" : "assets"}
+          </span>
+        </div>
+
+        {/* asset list */}
+        <ul className="max-h-64 divide-y divide-slate-100 overflow-y-auto dark:divide-slate-800">
+          {collaterals.map((c, i) => (
+            <li
+              key={`${c.symbol}-${i}`}
+              className="flex items-center justify-between gap-3 px-4 py-2.5"
+            >
+              <div className="flex items-center gap-2.5">
+                <TokenLogo symbol={c.symbol} size={28} className="ring-0" />
+                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {c.symbol}
+                </span>
+              </div>
+              <span className="text-sm font-medium tabular-nums text-slate-700 dark:text-slate-300">
+                {formatCurrency(c.value.formatted, false)}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        {/* footer total */}
+        <div className="flex items-center justify-between rounded-b-md border-t border-slate-200 bg-slate-50 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/60">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Total value
+          </span>
+          <span className="text-sm font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+            {formatCurrency(collateralUsd.formatted)}
+          </span>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+/* ----------------------------- columns ----------------------------- */
+
+export function getPositionColumns(actions: PositionActions = {}) {
+  const hasActions = Boolean(
+    actions.onDeposit || actions.onRepay || actions.onLiquidate,
+  );
+
+  return columnHelper.columns([
+    columnHelper.accessor("id", {
+      id: "id",
+      header: () => (
+        <ColumnHeaderLeft className="pl-5">Position</ColumnHeaderLeft>
+      ),
+      cell: (info) => {
+        return (
+          <div className="flex items-center gap-3 pl-5">
+            <span className="font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">
+              <span className="text-slate-400">#</span>
+              {info.getValue()}
+            </span>
+            <Tooltip>
+              <TooltipTrigger>
+                {info.row.original.isLiquidatable ? (
+                  <span className="inline-flex items-center gap-1.5 animate-pulse rounded-full bg-red-50 p-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-200 dark:bg-red-500/10 dark:text-red-400 dark:ring-red-500/30">
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+                    </span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center animate-pulse gap-1.5 rounded-full bg-emerald-50 p-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-500/30">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  </span>
+                )}
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className={"w-auto"}>
+                {!info.row.original.isLiquidatable
+                  ? "Position is healthy"
+                  : "Position is at risk of liquidation"}
+              </TooltipContent>
+            </Tooltip>
+
+            <CollateralHoverCard position={info.row.original} />
+          </div>
+        );
+      },
+    }),
+
+    columnHelper.accessor("owner", {
+      header: "Owner",
+      cell: (info) => <AddressCell addr={info.getValue()} />,
+    }),
+
+    columnHelper.accessor("openedAt", {
+      header: "Opened At",
+      cell: (info) => {
+        const date = info.getValue();
+        return <div>{date ? <BlockDate date={date} /> : "--"}</div>;
+      },
+    }),
+
+    columnHelper.accessor("closedAt", {
+      header: "Closed At",
+      cell: (info) => {
+        const date = info.getValue();
+        return (
+          <div>
+            {date ? (
+              <BlockDate date={date} />
+            ) : (
+              <p className="text-foreground/60">--</p>
+            )}
+          </div>
+        );
+      },
+    }),
+
+    columnHelper.accessor("cumulativeBorrowed", {
+      header: () => (
+        <ColumnHeaderRight className="text-left">
+          Credits Issued
+        </ColumnHeaderRight>
+      ),
+      cell: (info) => (
+        <div className="text-left font-medium tabular-nums text-slate-900 dark:text-slate-100">
+          {formatCurrency(info.getValue().formatted)}
+        </div>
+      ),
+    }),
+
+    columnHelper.accessor("debt", {
+      header: () => (
+        <ColumnHeaderRight className="text-left">Interest</ColumnHeaderRight>
+      ),
+      cell: (info) => {
+        const debt = parseFloat(info.getValue().formatted);
+        const borrowed = parseFloat(
+          info.row.original.cumulativeBorrowed.formatted,
+        );
+        const interest = debt - borrowed;
+        return (
+          <div className="text-left font-medium tabular-nums text-success">
+            {formatCurrency(interest.toFixed(2))}{interest > 0 && "+"}
+          </div>
+        );
+      },
+    }),
+
+    columnHelper.accessor("collateralUsd", {
+      header: () => (
+        <ColumnHeaderRight className="text-center">
+          Collateral (USD)
+        </ColumnHeaderRight>
+      ),
+      cell: (info) => (
+        <div className="text-center font-medium tabular-nums text-slate-900 dark:text-slate-100">
+          {formatCurrency(info.getValue().formatted)}
+        </div>
+      ),
+    }),
+
+    columnHelper.accessor("healthFactor", {
+      header: () => (
+        <ColumnHeaderRight className="text-center">
+          Health Factor
+        </ColumnHeaderRight>
+      ),
+      cell: (info) => {
+        const isInfinite = info.row.original.isInfiniteHealth;
+
+        if (isInfinite) {
+          return (
+            <div className="flex justify-center">
+              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-sm font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
+                ∞
+              </span>
+            </div>
+          );
+        }
+
+        const val = parseFloat(info.getValue().formatted);
+        const tone =
+          val > 1.5
+            ? {
+                text: "text-emerald-700 dark:text-emerald-400",
+                bar: "bg-emerald-500",
+                bg: "bg-emerald-50 dark:bg-emerald-500/10",
+              }
+            : val > 1.1
+              ? {
+                  text: "text-amber-700 dark:text-amber-400",
+                  bar: "bg-amber-500",
+                  bg: "bg-amber-50 dark:bg-amber-500/10",
+                }
+              : {
+                  text: "text-red-700 dark:text-red-400",
+                  bar: "bg-red-500",
+                  bg: "bg-red-50 dark:bg-red-500/10",
+                };
+
+        // gauge: 1.0x = 0%, 3.0x+ = 100%
+        const pct = Math.max(0, Math.min(100, ((val - 1) / 2) * 100));
+
+        return (
+          <div className="flex flex-col items-center gap-1">
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-bold tabular-nums ${tone.bg} ${tone.text}`}
+            >
+              {Number.isFinite(val) ? `${val.toFixed(2)}x` : "—"}
+            </span>
+            <div className="h-1 w-16 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+              <div
+                className={`h-full rounded-full ${tone.bar}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      },
+    }),
+
+    ...(hasActions
+      ? [
+          columnHelper.display({
+            id: "actions",
+            header: () => <span className="sr-only">Actions</span>,
+            enableSorting: false,
+
+            cell: ({ row }) => {
+              const position = row.original;
+
+              return (
+                <div
+                  className={[
+                    "flex items-center justify-end gap-1 pr-5",
+                    // hidden by default; interactive controls can't be clicked while invisible
+                    "pointer-events-none opacity-0 transition-opacity duration-150",
+                    // visible while the row is hovered
+                    "[tr:hover_&]:pointer-events-auto [tr:hover_&]:opacity-100",
+                    // keyboard users: reveal when anything in the row has focus
+                    "[tr:focus-within_&]:pointer-events-auto [tr:focus-within_&]:opacity-100",
+                  ].join(" ")}
+                >
+                  {actions.onDeposit && (
+                    <ColumnActionButton
+                      label="Add fund"
+                      icon={PlusCircleIcon}
+                      onClick={() => actions.onDeposit!(position)}
+                    />
+                  )}
+                  {actions.onRepay && (
+                    <ColumnActionButton
+                      label="Repay credit"
+                      icon={HandCoinsIcon}
+                      onClick={() => actions.onRepay!(position)}
+                    />
+                  )}
+                  {actions.onLiquidate && position.isLiquidatable && (
+                    <ColumnActionButton
+                      label="Liquidate"
+                      icon={Zap}
+                      tone="danger"
+                      onClick={() => actions.onLiquidate!(position)}
+                    />
+                  )}
+                </div>
+              );
+            },
+          }),
+        ]
+      : []),
+  ]);
+}

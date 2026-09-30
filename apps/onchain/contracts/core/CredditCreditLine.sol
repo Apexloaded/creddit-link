@@ -262,7 +262,7 @@ contract CredditCreditLine is CredditCore {
         // Solvency check: with the ledger already reduced, the remaining
         // collateral must still support the outstanding debt.
         _syncDebtIndex();
-        uint256 debtWad = _positionDebtWad(positionId);
+        uint256 debtWad = currentPositionDebt(positionId);
         if (debtWad != 0) {
             (uint256 liqWeighted, , ) = riskEngine.riskAdjustedValue(
                 address(this),
@@ -289,7 +289,7 @@ contract CredditCreditLine is CredditCore {
         _syncDebtIndex();
 
         uint256 amountWad = amount.toWad(usdgDecimals);
-        uint256 currentUserDebt = _positionDebtWad(positionId);
+        uint256 currentUserDebt = currentPositionDebt(positionId);
         uint256 newDebt = currentUserDebt + amountWad;
 
         uint256 limitWad = riskEngine.creditLimit(address(this), positionId);
@@ -396,11 +396,16 @@ contract CredditCreditLine is CredditCore {
         return positionCollateralBalance[positionId][asset];
     }
 
-    /// @notice Returns the debt for a specific position.
-    /// @param positionId The position id.
-    /// @return The amount of debt for the specified position.
-    function positionDebt(uint256 positionId) external view returns (uint256) {
-        return _positionDebtWad(positionId);
+    /// @notice Live debt index, including interest not yet written to storage.
+    function currentDebtIndexWad() external view returns (uint256) {
+        return _currentDebtIndexWad();
+    }
+
+    /// @notice Live debt for a position (WAD), including interest accrued since the last sync.
+    function currentPositionDebt(
+        uint256 positionId
+    ) public view returns (uint256) {
+        return debtShares[positionId].wadMulUp(_currentDebtIndexWad());
     }
 
     /// @notice Returns the risk adjusted value for a specific position.
@@ -437,10 +442,10 @@ contract CredditCreditLine is CredditCore {
         }
 
         uint256 previousIndex = debtIndexWad;
-        uint256 sourceDebt = router.currentTotalDebt();
+        uint256 sourceDebtWad = router.currentTotalDebt().toWad(usdgDecimals);
 
         // 3. Round DOWN when computing new index (conservative for debt indexing)
-        uint256 newIndex = sourceDebt.wadDivDown(totalDebtShares);
+        uint256 newIndex = sourceDebtWad.wadDivDown(totalDebtShares);
 
         // 4. Monotonicity check: Index should only ever increase
         if (newIndex > previousIndex) {
@@ -468,7 +473,7 @@ contract CredditCreditLine is CredditCore {
         uint256 positionId,
         uint256 debtToCover
     ) internal view returns (uint256 debtToCoverWad) {
-        uint256 debtWad = _positionDebtWad(positionId);
+        uint256 debtWad = currentPositionDebt(positionId);
 
         bool isLiquidatable = riskEngine.isLiquidatable(
             address(this),
@@ -580,7 +585,7 @@ contract CredditCreditLine is CredditCore {
         address collateralAsset,
         LiquidationAmounts memory amounts
     ) internal {
-        uint256 borrowerDebtWad = _positionDebtWad(positionId);
+        uint256 borrowerDebtWad = currentPositionDebt(positionId);
         uint256 sharesToRemove;
 
         // Calculate exact shares to burn using wadDivUp
@@ -686,13 +691,16 @@ contract CredditCreditLine is CredditCore {
         if (paid + slack < amount) revert RouterRepayShortfall(amount, paid);
     }
 
-    /// @notice Calculates the debt of the specified user.
-    /// @param positionId The ID of the position.
-    /// @return The debt balance of the specified user in USDG.
-    function _positionDebtWad(
-        uint256 positionId
-    ) internal view returns (uint256) {
-        return debtShares[positionId].wadMulUp(debtIndexWad);
+    /// @dev Index as it would be if synced right now. Never returns less than the stored index.
+    function _currentDebtIndexWad() internal view returns (uint256) {
+        if (totalDebtShares == 0) return debtIndexWad;
+
+        uint256 newIndex = router
+            .currentTotalDebt()
+            .toWad(usdgDecimals)
+            .wadDivDown(totalDebtShares);
+
+        return newIndex > debtIndexWad ? newIndex : debtIndexWad;
     }
 
     function _isCollateralEmpty(
@@ -722,7 +730,7 @@ contract CredditCreditLine is CredditCore {
         if (amount == 0) revert ZeroAmount();
         _syncDebtIndex();
 
-        uint256 debtWad = _positionDebtWad(positionId);
+        uint256 debtWad = currentPositionDebt(positionId);
         if (debtWad == 0) revert NoActiveDebt(positionId);
 
         uint256 amountWad = amount.toWad(usdgDecimals);
@@ -769,7 +777,7 @@ contract CredditCreditLine is CredditCore {
             actualAmountRepaidWad
         );
 
-        uint256 remainingDebtWad = _positionDebtWad(positionId);
+        uint256 remainingDebtWad = currentPositionDebt(positionId);
 
         // If no debt left and no collateral, close position
         if (debtShares[positionId] == 0 && _isCollateralEmpty(positionId)) {

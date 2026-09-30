@@ -32,7 +32,7 @@ export function CreditOverview({ portfolio, isLoading }: Props) {
   const progressColorClass = getUtilizationColor(utilization);
 
   return (
-    <section className="border border-y-0 lg:border-y-1 border-foreground/10 bg-background p-6">
+    <section className="border border-foreground/10 rounded-xl bg-background p-6 shadow-md">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-foreground/80">Available Credit</p>

@@ -311,8 +311,21 @@ export default buildModule("CredditProtocol", (m) => {
   // ---------------------------------------------------------------------
   // CredditLens
   // ---------------------------------------------------------------------
-  const credditLens = m.contract("CredditLens", [creditLine, pool], {
+  const creditLensImpl = m.contract("CredditLens", [], {
     id: "CredditLensImpl",
+  });
+  const creditLensInitData = m.encodeFunctionCall(
+    creditLensImpl,
+    "initialize",
+    [creditLine, pool],
+  );
+  const credditLensProxy = m.contract(
+    "ERC1967Proxy",
+    [creditLensImpl, creditLensInitData],
+    { id: "CredditLensProxy" },
+  );
+  const credditLens = m.contractAt("CredditLens", credditLensProxy, {
+    id: "CredditLens",
   });
 
   // ---------------------------------------------------------------------

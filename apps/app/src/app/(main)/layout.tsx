@@ -18,7 +18,7 @@ export default function MainLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="overflow-hidden h-svh">
         {path !== routes.auth.login && <AppHeader />}
 
         {/* Always render main page content */}

@@ -14,7 +14,7 @@ function QuickAction({ className }: Props) {
       <p className="text-2xl font-mono font-semibold">Good morning</p>
       <div className="flex items-center gap-1">
         <Button
-          render={<Link href={routes.app.deposit} />}
+          render={<Link href={routes.app.deposit()} />}
           size={"lg"}
           className={"text-background"}
         >

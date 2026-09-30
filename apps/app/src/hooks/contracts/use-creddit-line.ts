@@ -1,6 +1,6 @@
 "use client";
 
-import { useWriteContractSync } from "wagmi";
+import { useReadContract, useWriteContractSync } from "wagmi";
 import { CREDDIT_PROTOCOL_ADDRESSES } from "@/config";
 import { credditCreditLineAbi } from "@/contracts/abis/credditCreditLineAbi";
 import { useCallback, useMemo, useState } from "react";
@@ -215,9 +215,22 @@ export const useCredditLine = () => {
     };
   };
 
+  const useGetPositionDebt = (positionId: string) => {
+    return useReadContract({
+      address: creditLineAddress,
+      abi: credditCreditLineAbi,
+      functionName: "debtIndexWad",
+      // args: [BigInt(positionId)],
+      query: {
+        enabled: Boolean(positionId),
+      },
+    });
+  };
+
   return {
     useOpenPosition,
     useDeposit,
     useBorrow,
+    useGetPositionDebt,
   };
 };

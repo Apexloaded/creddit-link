@@ -814,6 +814,38 @@ export const credditCreditLineAbi = [
   },
   {
     inputs: [],
+    name: "currentDebtIndexWad",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+    ],
+    name: "currentPositionDebt",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "debtIndexWad",
     outputs: [
       {
@@ -1174,25 +1206,6 @@ export const credditCreditLineAbi = [
       },
     ],
     name: "positionCollateralBalance",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "positionId",
-        type: "uint256",
-      },
-    ],
-    name: "positionDebt",
     outputs: [
       {
         internalType: "uint256",

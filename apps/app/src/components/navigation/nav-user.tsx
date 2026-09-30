@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSidebar } from "@/components/ui/sidebar";
-import { truncate } from "@/lib/utils";
+import { addressGradient, truncate } from "@/lib/utils";
 import {
   SparklesIcon,
   BadgeCheckIcon,
@@ -35,9 +35,7 @@ export function NavUser() {
       >
         <Avatar className="size-7">
           <AvatarFallback
-            className={
-              "bg-conic/decreasing from-violet-700 via-lime-300 to-violet-700"
-            }
+            style={{ background: addressGradient(address ?? "0x0") }}
           ></AvatarFallback>
         </Avatar>
         <div className="grid flex-1 text-sm text-left leading-tight">
@@ -60,14 +58,12 @@ export function NavUser() {
             <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
               <Avatar>
                 <AvatarFallback
-                  className={
-                    "bg-conic/decreasing from-violet-700 via-lime-300 to-violet-700"
-                  }
+                  style={{ background: addressGradient(address ?? "0x0") }}
                 ></AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left leading-tight">
                 <span className="truncate font-medium text-foreground">
-                  0xa898...7c2c
+                  {truncate(address)}
                 </span>
               </div>
             </div>

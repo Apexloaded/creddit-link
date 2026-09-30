@@ -8,7 +8,7 @@ type Props = {
 
 export function BalanceOverview({ portfolio }: Props) {
   return (
-    <section className="border lg:border-r-0 border-foreground/10 bg-background p-6">
+    <section className="border rounded-xl border-foreground/10 bg-background p-6 shadow-md">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="text-sm text-foreground/80">Total Balance</p>

@@ -1,8 +1,8 @@
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
-import CredditProtocolModule from "./CredditProtocol.js"; // Import main module to reference proxy address
+import CredditProtocolModule from "./CredditProtocol.js";
 
 export default buildModule("CredditOracleUpgradeModule", (m) => {
-  // 1. Fetch the existing proxy address deployed in CredditProtocol
+  // 1. Fetch existing proxies and contracts from main module
   const {
     creditLineProxy,
     poolProxy,
@@ -10,59 +10,35 @@ export default buildModule("CredditOracleUpgradeModule", (m) => {
     riskEngineProxy,
     oracleProxy,
     registryProxy,
+    creditLine,
+    pool,
   } = m.useModule(CredditProtocolModule);
 
-  // 2. Deploy the new implementation bytecode compiled from updated CredditOracle.sol
+  // 2. Deploy new implementation contract
   const newCreditLineImpl = m.contract("CredditCreditLine");
-  const newCredditRouterImpl = m.contract("CredditLendingRouter");
-  const newCredditLiquidityPoolImpl = m.contract("CredditLiquidityPool");
-  const newRiskEngineImpl = m.contract("CredditRiskEngine");
-  const newOracleImpl = m.contract("CredditOracle");
-  const newRegistryImpl = m.contract("CredditAssetRegistry")
 
-  // 3. Attach to the existing Proxy using the updated ABI
+  // 3. Attach ABI interface to the existing Proxy
   const creditLineAtProxy = m.contractAt("CredditCreditLine", creditLineProxy, {
     id: "CredditCreditLineProxyInterface",
   });
-  const routerAtProxy = m.contractAt("CredditLendingRouter", routerProxy, {
-    id: "CredditLendingRouterProxyInterface",
-  });
-  const liquidityPoolAtProxy = m.contractAt("CredditLiquidityPool", poolProxy, {
-    id: "CredditLiquidityPoolProxyInterface",
-  });
-  const riskEngineAtProxy = m.contractAt("CredditRiskEngine", riskEngineProxy, {
-    id: "CredditRiskEngineProxyInterface",
-  });
-  const oracleAtProxy = m.contractAt("CredditOracle", oracleProxy, {
-    id: "CredditOracleProxyInterface",
-  });
-  const registryAtProxy = m.contractAt("CredditAssetRegistry", registryProxy, {
-    id: "CredditAssetRegistryProxyInterface",
+
+  // 4. Deploy CredditLens referencing the proxy contract future and pool
+  const credditLens = m.contract("CredditLens", [creditLine, pool], {
+    id: "CredditLensImpl",
   });
 
-  // 4. Point the proxy to the new implementation
+  // 5. Call upgradeToAndCall on UUPS or Transparent Proxy
+  // Note: Pass "0x" as string or empty byte representation depending on contract expectations
   m.call(creditLineAtProxy, "upgradeToAndCall", [newCreditLineImpl, "0x"]);
-  m.call(routerAtProxy, "upgradeToAndCall", [newCredditRouterImpl, "0x"]);
-  m.call(liquidityPoolAtProxy, "upgradeToAndCall", [
-    newCredditLiquidityPoolImpl,
-    "0x",
-  ]);
-  m.call(riskEngineAtProxy, "upgradeToAndCall", [newRiskEngineImpl, "0x"]);
-  m.call(oracleAtProxy, "upgradeToAndCall", [newOracleImpl, "0x"]);
-  m.call(registryAtProxy, "upgradeToAndCall", [newRegistryImpl, "0x"]);
 
   return {
     creditLineProxy,
     newCreditLineImpl,
+    credditLens,
     poolProxy,
-    newCredditLiquidityPoolImpl,
     routerProxy,
-    newCredditRouterImpl,
     riskEngineProxy,
-    newRiskEngineImpl,
     oracleProxy,
-    newOracleImpl,
     registryProxy,
-    newRegistryImpl
   };
 });

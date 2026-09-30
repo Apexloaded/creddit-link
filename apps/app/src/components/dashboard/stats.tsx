@@ -4,15 +4,17 @@ import { BalanceOverview } from "@/components/dashboard/balance-overview";
 import { CreditOverview } from "@/components/dashboard/credit-overview";
 import { PositionHealthCard } from "@/components/dashboard/position-health";
 import { useCreddit } from "@/context/creddit.context";
-import { useLiquidityPoolData } from "@/hooks/contracts/use-liquidity-pool";
+import { useCredditLine } from "@/hooks/contracts/use-creddit-line";
 
-function Dashboard() {
-  const { assets, portfolio, isLoadingPortfolio, positions } = useCreddit();
-  const { formattedShare } = useLiquidityPoolData();
-  console.log(portfolio);
+function DashboardStats() {
+  const { portfolio, isLoadingPortfolio } = useCreddit();
+  const { useGetPositionDebt } = useCredditLine();
+
+  const { data } = useGetPositionDebt("1");
+  console.log(data);
 
   return (
-    <div className="grid mt-10 lg:grid-cols-3">
+    <div className="grid mt-10 lg:grid-cols-3 gap-5">
       <BalanceOverview portfolio={portfolio} />
       <CreditOverview portfolio={portfolio} isLoading={isLoadingPortfolio} />
       <PositionHealthCard portfolio={portfolio} />
@@ -20,4 +22,4 @@ function Dashboard() {
   );
 }
 
-export default Dashboard;
+export default DashboardStats;

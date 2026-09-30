@@ -151,7 +151,7 @@ interface ICredditCreditLine {
 
     /// @notice Returns the address of the risk engine.
     /// @return The address of the risk engine.
-    function positions() external view returns (Position memory);
+    function positions(uint256 positionId) external view returns (Position memory);
 
     /// @notice Returns the amount of collateral for a specific user and asset.
     /// @param positionId The ID of the position.
@@ -179,7 +179,7 @@ interface ICredditCreditLine {
     /// @notice Returns the debt shares for a specific position.
     /// @param positionId The ID of the position.
     /// @return The debt shares.
-    function positionDebt(uint256 positionId) external view returns (uint256);
+    function currentPositionDebt(uint256 positionId) external view returns (uint256);
 
     /// @notice Returns the owner for a specific position.
     /// @param positionId The ID of the position.
