@@ -4,7 +4,11 @@ import HardhatIgnitionEthersPlugin from "@nomicfoundation/hardhat-ignition-ether
 import hardhatVerify from "@nomicfoundation/hardhat-verify";
 
 export default defineConfig({
-  plugins: [HardhatIgnitionEthersPlugin, hardhatToolboxMochaEthersPlugin, hardhatVerify],
+  plugins: [
+    HardhatIgnitionEthersPlugin,
+    hardhatToolboxMochaEthersPlugin,
+    hardhatVerify,
+  ],
   solidity: {
     profiles: {
       default: {
@@ -14,7 +18,7 @@ export default defineConfig({
             enabled: true,
             runs: 200,
           },
-        }
+        },
       },
       production: {
         version: "0.8.34",
@@ -51,7 +55,25 @@ export default defineConfig({
       chainId: 46630,
       accounts: [configVariable("RH_TESTNET_PRIVATE_KEY")],
     },
+    baseSepolia: {
+      type: "http",
+      chainType: "op",
+      url: configVariable("BASE_SEPOLIA_RPC_URL"),
+      chainId: 84532,
+      accounts: [configVariable("BASE_SEPOLIA_PRIVATE_KEY")],
+    },
   },
+  // ignition: {
+  //   // Live-network default is several confirmations per tx, which makes a ~45-tx
+  //   // deploy slow. One is fine on a testnet.
+  //   requiredConfirmations: 1,
+  // },
+  // verify: {
+  //   etherscan: {
+  //     // A single Etherscan v2 key covers Basescan, including Base Sepolia.
+  //     apiKey: configVariable("ETHERSCAN_API_KEY"),
+  //   },
+  // },
   // ignition: {
   //   strategyConfig: {
   //     create2: {

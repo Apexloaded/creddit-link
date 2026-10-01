@@ -1,22 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState, useRef } from "react";
-import { useListAssets } from "./contracts";
+import { useCredditAddresses, useCredditAssetRegistry } from "./contracts";
 import { bpsToRawPercent } from "@/lib/utils";
 import { Address, erc20Abi, formatUnits } from "viem";
 import { useConnection, useReadContracts } from "wagmi";
-import {
-  CREDDIT_PROTOCOL_ADDRESSES,
-  ORACLE_PRICE_DECIMALS,
-} from "@/config/contract.config";
+import { Contracts, ORACLE_PRICE_DECIMALS } from "@/config/contract.config";
 import { credditOracleAbi } from "@/contracts/abis/credditOracleAbi";
 import { IAsset } from "@/interfaces/asset.interface";
 
 export function useAsset() {
   const { address } = useConnection();
+  const { getContract } = useCredditAddresses();
+  const oracleAddress = getContract(Contracts.ORACLE);
+  const { useListAssets } = useCredditAssetRegistry();
   const [selectedAsset, setSelectedAsset] = useState<IAsset | undefined>();
   const [assets, setAssets] = useState<IAsset[]>([]);
-  
+
   // Track if user explicitly picked an asset so we don't overwrite their pick
   const isUserSelectedRef = useRef(false);
 
@@ -74,7 +74,7 @@ export function useAsset() {
         args: [address],
       },
       {
-        address: CREDDIT_PROTOCOL_ADDRESSES.ORACLE as Address,
+        address: oracleAddress as Address,
         abi: credditOracleAbi,
         functionName: "getUsdPriceSafe" as const,
         args: [asset.token],
@@ -157,7 +157,9 @@ export function useAsset() {
         // 3. If dynamicData has arrived and user hasn't manually selected, set the highest valued asset.
         if (isUserSelectedRef.current) {
           setSelectedAsset(
-            (prev) => mapRawAssets.find((a) => a.token === prev?.token) ?? highestValuedAsset
+            (prev) =>
+              mapRawAssets.find((a) => a.token === prev?.token) ??
+              highestValuedAsset,
           );
         } else {
           setSelectedAsset(highestValuedAsset);

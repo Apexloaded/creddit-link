@@ -1,6 +1,5 @@
 import * as yup from "yup";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { type Address, getAddress, isAddress } from "viem";
 
 export const depositSchema = yup
   .object({

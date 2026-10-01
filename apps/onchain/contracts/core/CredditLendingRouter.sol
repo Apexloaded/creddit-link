@@ -2,7 +2,9 @@
 pragma solidity ^0.8.27;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {CredditCore} from "./CredditCore.sol";
 import {ZeroAddressProvided, ZeroAmount} from "./CredditErrors.sol";
@@ -12,7 +14,6 @@ import {WadMath} from "../libraries/WadMath.sol";
 import {
     IERC20Metadata
 } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-
 
 /// @notice Custom Errors for the CredditLendingRouter contract
 error InvalidCreditLine();
@@ -124,7 +125,8 @@ contract CredditLendingRouter is CredditCore {
     /// @notice Mapping from adapter address to its information.
     mapping(address => AdapterInfo) public adapters;
 
-    /// @notice Principal borrowed by a beneficiary from each adapter.
+    /// @notice Principal borrowed by a beneficiary from each adapter (informational;
+    /// repayment is driven by `debtSharesOf`).
     mapping(address => mapping(address => uint256)) public borrowedFrom;
 
     /// @notice Mapping from beneficiary address to the adapters it currently owes.
@@ -139,6 +141,12 @@ contract CredditLendingRouter is CredditCore {
 
     /// @notice The credit line contract.
     address public creditLine;
+
+    /// @notice Total debt shares outstanding per adapter.
+    mapping(address => uint256) public adapterTotalShares;
+
+    /// @notice Debt shares a beneficiary holds in each adapter.
+    mapping(address => mapping(address => uint256)) public debtSharesOf;
 
     /// @notice Initializes the CredditLendingRouter contract.
     /// @param admin The address of the admin (the deployer), also pauser and DEFAULT_ADMIN_ROLE.
@@ -232,22 +240,25 @@ contract CredditLendingRouter is CredditCore {
         if (amount == 0) revert ZeroAmount();
         if (beneficiary == address(0)) revert ZeroAddressProvided();
 
-        (
-            Allocation[] memory allocations,
-            uint256 filled,
-            uint256 blendedRateWad,
-            uint256 totalFeeWad
-        ) = _quote(amount);
-        if (filled != amount)
-            revert InsufficientAggregateLiquidity(amount, filled);
+        Allocation[] memory allocations;
+        (allocations, weightedAprBps) = _getQuoteAndApr(amount);
 
-        weightedAprBps = _toAprBps(blendedRateWad, totalFeeWad, filled);
-
-        uint256 len = allocations.length;
-        for (uint256 i = 0; i < len; ++i) {
+        for (uint256 i = 0; i < allocations.length; ++i) {
             address adapterAddr = allocations[i].adapter;
             uint256 slice = allocations[i].amount;
             if (slice == 0) continue;
+
+            // Price new shares BEFORE the adapter's debt grows by `slice`.
+            uint256 totalShares = adapterTotalShares[adapterAddr];
+            uint256 debtBefore = ILendingAdapter(adapterAddr).currentDebt();
+            uint256 newShares = (totalShares == 0 || debtBefore == 0)
+                ? slice // first borrower: 1 share = 1 raw unit
+                : Math.mulDiv(
+                    slice,
+                    totalShares,
+                    debtBefore,
+                    Math.Rounding.Ceil
+                );
 
             // Effects before interaction
             if (!_hasBeneficiaryAdapter[beneficiary][adapterAddr]) {
@@ -255,6 +266,8 @@ contract CredditLendingRouter is CredditCore {
                 _beneficiaryAdapters[beneficiary].push(adapterAddr);
             }
             borrowedFrom[beneficiary][adapterAddr] += slice;
+            debtSharesOf[beneficiary][adapterAddr] += newShares;
+            adapterTotalShares[adapterAddr] = totalShares + newShares;
 
             // Not caught: any failure must revert the whole transaction
             // (atomic delivery of the full amount).
@@ -293,8 +306,25 @@ contract CredditLendingRouter is CredditCore {
 
         for (uint256 i = 0; i < list.length && remaining > 0; ++i) {
             address adapterAddr = list[i];
-            uint256 owed = borrowedFrom[beneficiary][adapterAddr];
-            if (owed == 0) continue;
+            uint256 shares = debtSharesOf[beneficiary][adapterAddr];
+            if (shares == 0) continue;
+
+            uint256 totalShares = adapterTotalShares[adapterAddr];
+            uint256 adapterDebt = ILendingAdapter(adapterAddr).currentDebt();
+
+            // Beneficiary's claim on this adapter: principal + its share of interest.
+            // Rounded up so the borrower is never under-charged.
+            uint256 owed = Math.mulDiv(
+                shares,
+                adapterDebt,
+                totalShares,
+                Math.Rounding.Ceil
+            );
+            if (owed == 0) {
+                // Adapter debt is gone; clear the worthless claim.
+                _burnDebtShares(beneficiary, adapterAddr, shares, owed);
+                continue;
+            }
 
             uint256 slice = owed < remaining ? owed : remaining;
 
@@ -313,11 +343,18 @@ contract CredditLendingRouter is CredditCore {
             if (repaid < slice) usdg.safeTransfer(msg.sender, slice - repaid);
             if (repaid == 0) continue;
 
-            // repaid <= slice <= owed, so this cannot underflow
-            uint256 newOwed = owed - repaid;
-            borrowedFrom[beneficiary][adapterAddr] = newOwed;
-            if (newOwed == 0)
-                _removeBeneficiaryAdapter(beneficiary, adapterAddr);
+            // Whole claim cleared -> burn every share. Otherwise burn rounded DOWN so
+            // rounding dust never shifts onto other borrowers of the same adapter.
+            uint256 burn = repaid == owed
+                ? shares
+                : Math.mulDiv(
+                    repaid,
+                    totalShares,
+                    adapterDebt,
+                    Math.Rounding.Floor
+                );
+
+            _burnDebtShares(beneficiary, adapterAddr, burn, repaid);
 
             totalPaid += repaid;
             remaining -= repaid;
@@ -381,6 +418,32 @@ contract CredditLendingRouter is CredditCore {
             address adapter = address(_adapters[i]);
             if (!adapters[adapter].enabled) continue;
             total += _adapters[i].currentDebt();
+        }
+    }
+
+    /// @notice Debt (principal + interest, raw USDG units) `beneficiary` owes at one adapter.
+    function debtOf(
+        address beneficiary,
+        address adapterAddr
+    ) public view returns (uint256) {
+        uint256 shares = debtSharesOf[beneficiary][adapterAddr];
+        if (shares == 0) return 0;
+        return
+            Math.mulDiv(
+                shares,
+                ILendingAdapter(adapterAddr).currentDebt(),
+                adapterTotalShares[adapterAddr],
+                Math.Rounding.Ceil
+            );
+    }
+
+    /// @notice Total debt `beneficiary` owes across all adapters.
+    function totalDebtOf(
+        address beneficiary
+    ) external view returns (uint256 total) {
+        address[] storage list = _beneficiaryAdapters[beneficiary];
+        for (uint256 i = 0; i < list.length; ++i) {
+            total += debtOf(beneficiary, list[i]);
         }
     }
 
@@ -497,6 +560,48 @@ contract CredditLendingRouter is CredditCore {
                 baseRateWad: rateWad,
                 feeWad: feeWad
             });
+        }
+    }
+
+    function _getQuoteAndApr(
+        uint256 amount
+    )
+        private
+        view
+        returns (Allocation[] memory allocations, uint256 weightedAprBps)
+    {
+        uint256 filled;
+        uint256 blendedRateWad;
+        uint256 totalFeeWad;
+
+        (allocations, filled, blendedRateWad, totalFeeWad) = _quote(amount);
+
+        if (filled != amount) {
+            revert InsufficientAggregateLiquidity(amount, filled);
+        }
+
+        weightedAprBps = _toAprBps(blendedRateWad, totalFeeWad, filled);
+    }
+
+    /// @notice burn the debt share of a beneficary in an adapter
+    function _burnDebtShares(
+        address beneficiary,
+        address adapterAddr,
+        uint256 burn,
+        uint256 repaid
+    ) private {
+        uint256 principal = borrowedFrom[beneficiary][adapterAddr];
+        borrowedFrom[beneficiary][adapterAddr] = repaid >= principal
+            ? 0
+            : principal - repaid;
+
+        uint256 left = debtSharesOf[beneficiary][adapterAddr] - burn;
+        debtSharesOf[beneficiary][adapterAddr] = left;
+        adapterTotalShares[adapterAddr] -= burn;
+
+        if (left == 0) {
+            borrowedFrom[beneficiary][adapterAddr] = 0;
+            _removeBeneficiaryAdapter(beneficiary, adapterAddr);
         }
     }
 

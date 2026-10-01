@@ -283,14 +283,22 @@ export function getPositionColumns(actions: PositionActions = {}) {
         <ColumnHeaderRight className="text-left">Interest</ColumnHeaderRight>
       ),
       cell: (info) => {
-        const debt = parseFloat(info.getValue().formatted);
+        const debt = parseFloat(info.getValue().formatted ?? "0");
         const borrowed = parseFloat(
-          info.row.original.cumulativeBorrowed.formatted,
+          info.row.original.cumulativeBorrowed?.formatted ?? "0",
         );
-        const interest = debt - borrowed;
+        const repaid = parseFloat(
+          info.row.original.cumulativeRepaid?.formatted ?? "0",
+        );
+
+        // Total Paid + Outstanding Debt minus Total Principal Borrowed
+        const interest = Math.max(0, debt + repaid - borrowed);
+
         return (
           <div className="text-left font-medium tabular-nums text-success">
-            {formatCurrency(interest.toFixed(2))}{interest > 0 && "+"}
+            {interest > 0
+              ? `+${formatCurrency(interest.toFixed(2))}`
+              : formatCurrency("0.00")}
           </div>
         );
       },
@@ -413,6 +421,7 @@ export function getPositionColumns(actions: PositionActions = {}) {
                       onClick={() => actions.onLiquidate!(position)}
                     />
                   )}
+                  
                 </div>
               );
             },

@@ -14,7 +14,7 @@ import { useCredditLine } from "@/hooks/contracts/use-creddit-line";
 export default function BorrowCreditModal() {
   const router = useRouter();
   const [open, setOpen] = useState(true);
-  const { assets, isListLoading, positions } = useCreddit();
+  const { isListLoading, positions } = useCreddit();
   const { useBorrow } = useCredditLine();
   const { borrow, isProcessing, stepStatus } = useBorrow();
 

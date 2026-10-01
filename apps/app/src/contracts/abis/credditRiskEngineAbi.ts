@@ -397,7 +397,7 @@ export const credditRiskEngineAbi = [
     outputs: [
       {
         internalType: "uint256",
-        name: "",
+        name: "limitWad",
         type: "uint256",
       },
     ],
@@ -421,7 +421,7 @@ export const credditRiskEngineAbi = [
     outputs: [
       {
         internalType: "uint256",
-        name: "limit",
+        name: "limitWad",
         type: "uint256",
       },
       {
@@ -643,7 +643,7 @@ export const credditRiskEngineAbi = [
     outputs: [
       {
         internalType: "uint256",
-        name: "total",
+        name: "totalWad",
         type: "uint256",
       },
       {
@@ -810,7 +810,7 @@ export const credditRiskEngineAbi = [
     outputs: [
       {
         internalType: "uint256",
-        name: "total",
+        name: "totalWad",
         type: "uint256",
       },
       {

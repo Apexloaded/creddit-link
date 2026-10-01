@@ -2,9 +2,15 @@
 pragma solidity ^0.8.27;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    IERC20Metadata
+} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {
+    EnumerableSet
+} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {CredditCore} from "./CredditCore.sol";
 import {CredditAssetRegistry} from "./CredditAssetRegistry.sol";
@@ -14,9 +20,24 @@ import {CredditLendingRouter} from "./CredditLendingRouter.sol";
 import {WadMath} from "../libraries/WadMath.sol";
 import {CreditRiskMath} from "../libraries/CreditRiskMath.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
-import {ZeroAddressProvided, ZeroAmount, AssetNotEnabled} from "./CredditErrors.sol";
+import {
+    ZeroAddressProvided,
+    ZeroAmount,
+    AssetNotEnabled
+} from "./CredditErrors.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
-import {Position, LiquidationAmounts, PositionOpenedEvent, PositionClosedEvent, BorrowedEvent, RepaidEvent, LiquidatedEvent, CollateralDepositedEvent, CollateralWithdrawnEvent, DebtInterestAccruedEvent} from "../interfaces/ICredditCreditLine.sol";
+import {
+    Position,
+    LiquidationAmounts,
+    PositionOpenedEvent,
+    PositionClosedEvent,
+    BorrowedEvent,
+    RepaidEvent,
+    LiquidatedEvent,
+    CollateralDepositedEvent,
+    CollateralWithdrawnEvent,
+    DebtInterestAccruedEvent
+} from "../interfaces/ICredditCreditLine.sol";
 
 /// @notice Custom Errors for the CredditCore contract
 error MaxExposureExceeded(address asset, uint256 newTotal, uint256 maxExposure);
@@ -733,31 +754,34 @@ contract CredditCreditLine is CredditCore {
         uint256 debtWad = currentPositionDebt(positionId);
         if (debtWad == 0) revert NoActiveDebt(positionId);
 
-        uint256 amountWad = amount.toWad(usdgDecimals);
+        address owner = positions[positionId].owner;
 
         uint256 actualAmountRepaid;
         uint256 actualAmountRepaidWad;
         uint256 sharesToBurn;
 
-        // --- FULL REPAYMENT ---
-        if (amountWad >= debtWad) {
-            // Round UP token amount to ensure user pays the full required amount for all their shares.
-            actualAmountRepaid = debtWad.fromWadUp(usdgDecimals);
+        // --- FULL REPAYMENT VIA SENTINEL VALUE OR OVERPAYMENT ---
+        if (amount == type(uint256).max ||amount.toWad(usdgDecimals) >= debtWad) {
+            // Fetch exact token debt tracked by router/adapters to avoid rounding mismatch
+            uint256 routerDebt = router.totalDebtOf(owner);
+            uint256 debtInTokens = debtWad.fromWadUp(usdgDecimals);
+
+            // Use the exact router debt if available, capped at debtInTokens
+            actualAmountRepaid = (routerDebt > 0 && routerDebt <= debtInTokens)
+                ? routerDebt
+                : debtInTokens;
             actualAmountRepaidWad = debtWad;
 
-            // Burn 100% of the user's debt shares to guarantee complete cleanup and avoid underflows.
+            // Burn 100% of the user's debt shares
             sharesToBurn = debtShares[positionId];
         }
         // --- PARTIAL REPAYMENT ---
         else {
-            // Round UP token amount to ensure user pays the full required amount for all their shares.
             actualAmountRepaid = amount;
-            actualAmountRepaidWad = amountWad;
+            actualAmountRepaidWad = amount.toWad(usdgDecimals);
 
-            // Burn only the required number of shares for this payment.
-            sharesToBurn = amountWad.wadDivUp(debtIndexWad);
+            sharesToBurn = actualAmountRepaidWad.wadDivUp(debtIndexWad);
 
-            // Safety cap against edge-case rounding overflowing the user's total shares balance
             if (sharesToBurn > debtShares[positionId]) {
                 sharesToBurn = debtShares[positionId];
             }
@@ -767,9 +791,7 @@ contract CredditCreditLine is CredditCore {
         totalDebtShares -= sharesToBurn;
         positions[positionId].cumulativeRepaid += actualAmountRepaid;
 
-        // Interaction: pull USDG from the payer and repay through the router.
-        // A shortfall beyond rounding dust reverts, which unwinds the share burn above.
-        address owner = positions[positionId].owner;
+        // Perform repayment via router
         uint256 paid = _repayViaRouter(
             payer,
             owner,
@@ -779,7 +801,7 @@ contract CredditCreditLine is CredditCore {
 
         uint256 remainingDebtWad = currentPositionDebt(positionId);
 
-        // If no debt left and no collateral, close position
+        // If full share burn completed, guarantee position cleanup
         if (debtShares[positionId] == 0 && _isCollateralEmpty(positionId)) {
             positions[positionId].isClosed = true;
             positions[positionId].closedAt = uint64(block.timestamp);

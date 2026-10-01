@@ -317,7 +317,7 @@ export default buildModule("CredditProtocol", (m) => {
   const creditLensInitData = m.encodeFunctionCall(
     creditLensImpl,
     "initialize",
-    [creditLine, pool],
+    [admin, creditLine, pool],
   );
   const credditLensProxy = m.contract(
     "ERC1967Proxy",
@@ -402,6 +402,8 @@ export default buildModule("CredditProtocol", (m) => {
     creditLineProxy,
     treasury,
     treasuryProxy,
+    credditLensProxy,
+    usdg,
     ...stockTokens,
     ...Object.fromEntries(
       Object.entries(stockFeeds).map(([symbol, feed]) => [

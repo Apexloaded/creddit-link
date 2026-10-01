@@ -6,7 +6,7 @@ import { Button } from "../ui/button";
 import { cleanPrice, formatCurrency } from "@/lib/utils";
 import { Input } from "../ui/input";
 import { useCreddit } from "@/context/creddit.context";
-import { useLiquidityPoolData } from "@/hooks/contracts/use-liquidity-pool";
+import { useCredditLiquidityPool } from "@/hooks/contracts/use-creddit-liquidity-pool";
 import { useEarnCalculations } from "@/hooks";
 
 type Props = {
@@ -23,13 +23,14 @@ export default function EarnForm({
   const [amount, setAmount] = useState<string>("");
   const [activePct, setActivePct] = useState<number | null>(null);
   const { usdgUnitBalance } = useCreddit();
+  const { usePoolData } = useCredditLiquidityPool();
   const {
     currentDebt,
     availableLiquidity,
     borrowRateBps,
     totalAssets,
     isLoading: isPoolLoading,
-  } = useLiquidityPoolData();
+  } = usePoolData();
 
   console.log(availableLiquidity, borrowRateBps, totalAssets);
   const {

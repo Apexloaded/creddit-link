@@ -1,20 +1,28 @@
 "use client";
 
-import { useReadContract, useWriteContractSync } from "wagmi";
-import { CREDDIT_PROTOCOL_ADDRESSES } from "@/config";
+import { useConnection, useReadContract, useWriteContractSync } from "wagmi";
+import { Contracts, Tokens } from "@/config";
 import { credditCreditLineAbi } from "@/contracts/abis/credditCreditLineAbi";
-import { useCallback, useMemo, useState } from "react";
-import { Address, erc20Abi } from "viem";
-import { useErc20Details } from "./asset-registry";
-import { cleanPrice, parseAmount } from "@/lib/utils";
+import { useCallback, useState } from "react";
+import { Address, erc20Abi, maxUint256 } from "viem";
+import { useErc20Details } from "./use-erc20";
+import {
+  cleanPrice,
+  parseAmount,
+  toFormattedAmount,
+  wadToTokenDecimalsUp,
+} from "@/lib/utils";
 import { config } from "@/config/wagmi.config";
-import { waitForTransactionReceipt } from "wagmi/actions";
+import { getTransactionCount, waitForTransactionReceipt } from "wagmi/actions";
 import { DepositSchemaType } from "@/schemas/deposit.schema";
-import { BorrowSchemaType } from "@/schemas";
+import { BorrowSchemaType, RepaySchemaType } from "@/schemas";
+import { useCredditAddresses } from "./use-creddit-addresses";
 
 export const useCredditLine = () => {
-  const creditLineAddress = CREDDIT_PROTOCOL_ADDRESSES.CREDIT_LINE;
-  const usdgTokenAddress = CREDDIT_PROTOCOL_ADDRESSES.USDG;
+  const { address } = useConnection();
+  const { getContract, getToken } = useCredditAddresses();
+  const creditLineAddress = getContract(Contracts.CREDIT_LINE);
+  const usdgTokenAddress = getToken(Tokens.USDG);
 
   /**
    * 1. Hook to directly open a new position without depositing collateral
@@ -215,14 +223,144 @@ export const useCredditLine = () => {
     };
   };
 
-  const useGetPositionDebt = (positionId: string) => {
+  /**
+   * 4. Dynamic Repay Hook:
+   * Handles ERC20 approval check/tx -> Calls repay
+   */
+  const useRepay = (positionId: string | null) => {
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [stepStatus, setStepStatus] = useState<
+      "idle" | "approving" | "repaying"
+    >("idle");
+    const [error, setError] = useState<Error | null>(null);
+
+    const { mutateAsync } = useWriteContractSync();
+
+    let { decimals, allowance, refetch, isLoading } = useErc20Details(
+      usdgTokenAddress,
+      creditLineAddress,
+    );
+
+    const { refetch: refetchDebt } = useCurrentPositionDebt(positionId);
+
+    const repay = useCallback(
+      async ({ amount, positionId, isFullRepay }: RepaySchemaType) => {
+        const cleanedAmount = cleanPrice(amount, true);
+        const parsedAmount = parseAmount(cleanedAmount, decimals);
+        const parsedPositionId = BigInt(positionId);
+
+        const { data: liveDebt } = await refetchDebt();
+
+        if (
+          !usdgTokenAddress ||
+          parsedAmount === BigInt(0) ||
+          isLoading ||
+          !liveDebt
+        ) {
+          return;
+        }
+
+        setError(null);
+        setIsProcessing(true);
+
+        try {
+          const currentDebtWad = liveDebt ? liveDebt.raw : BigInt(0);
+          const currentDebtToken = wadToTokenDecimalsUp(currentDebtWad);
+
+          // 1. Determine if this is a full repayment
+          const isMaxRepay =
+            isFullRepay ||
+            (currentDebtToken > BigInt(0) && parsedAmount >= currentDebtToken);
+
+          // 2. Calculate required approval & repay amounts
+          // Add 0.1% buffer (1001 / 1000) for full repayment to handle pending block drift
+          const targetRepayAmount = isMaxRepay
+            ? (currentDebtToken * BigInt(1001)) / BigInt(1000)
+            : parsedAmount;
+
+          // 3. Step One: Check & Approve if allowance is insufficient
+          if (allowance < targetRepayAmount) {
+            setStepStatus("approving");
+
+            const nonce = await getTransactionCount(config, {
+              address: address!,
+              blockTag: "pending",
+            });
+
+            const { transactionHash } = await mutateAsync({
+              address: usdgTokenAddress,
+              abi: erc20Abi,
+              functionName: "approve",
+              args: [creditLineAddress, targetRepayAmount],
+              nonce,
+            });
+
+            await waitForTransactionReceipt(config, { hash: transactionHash });
+
+            // Refetch updated allowance
+            const { data } = await refetch();
+            allowance = (data?.[0]?.result as bigint | undefined) ?? BigInt(0);
+
+            if (allowance < targetRepayAmount) {
+              throw new Error(
+                "Allowance still insufficient after approval confirmed on-chain.",
+              );
+            }
+          }
+
+          // 4. Step Two: Execute Repayment
+          setStepStatus("repaying");
+
+          const { transactionHash } = await mutateAsync({
+            address: creditLineAddress,
+            abi: credditCreditLineAbi,
+            functionName: "repay",
+            args: [parsedPositionId, targetRepayAmount],
+          });
+
+          const receipt = await waitForTransactionReceipt(config, {
+            hash: transactionHash,
+          });
+
+          return receipt;
+        } catch (err) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+          throw err;
+        } finally {
+          setIsProcessing(false);
+          setStepStatus("idle");
+        }
+      },
+      [
+        usdgTokenAddress,
+        mutateAsync,
+        cleanPrice,
+        parseAmount,
+        decimals,
+        allowance,
+        refetch,
+        isLoading,
+        refetchDebt,
+      ],
+    );
+
+    return {
+      repay,
+      isProcessing,
+      stepStatus,
+      error,
+    };
+  };
+
+  const useCurrentPositionDebt = (positionId: string | null) => {
     return useReadContract({
       address: creditLineAddress,
       abi: credditCreditLineAbi,
-      functionName: "debtIndexWad",
-      // args: [BigInt(positionId)],
+      functionName: "currentPositionDebt",
+      args: [positionId ? BigInt(positionId) : BigInt(0)],
       query: {
-        enabled: Boolean(positionId),
+        enabled: Boolean(positionId && BigInt(positionId) > BigInt(0)),
+        select: (data) => toFormattedAmount(data),
       },
     });
   };
@@ -231,6 +369,7 @@ export const useCredditLine = () => {
     useOpenPosition,
     useDeposit,
     useBorrow,
-    useGetPositionDebt,
+    useRepay,
+    useCurrentPositionDebt,
   };
 };

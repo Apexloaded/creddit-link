@@ -7,12 +7,13 @@ import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cleanPrice, cn } from "@/lib/utils";
 import EarnForm from "./earn-form";
-import { useDepositLiquidity } from "@/hooks/contracts/use-liquidity-pool";
+import { useCredditLiquidityPool } from "@/hooks/contracts/use-creddit-liquidity-pool";
 
 export default function EarnModal() {
   const router = useRouter();
   const [open, setOpen] = useState(true);
-  const { handleDepositFlow, isProcessing, stepStatus } = useDepositLiquidity();
+  const { useDeposit } = useCredditLiquidityPool();
+  const { deposit, isProcessing, stepStatus } = useDeposit();
 
   const handleClose = () => {
     setOpen(false);
@@ -26,11 +27,11 @@ export default function EarnModal() {
   };
 
   const handleDeposit = (amount: string) => {
-    handleDepositFlow(cleanPrice(amount));
+    deposit(cleanPrice(amount));
   };
 
   return (
-    <Dialog open={open} onOpenChange={() => { }}>
+    <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent
         showCloseButton={false}
         className={cn(
@@ -38,7 +39,7 @@ export default function EarnModal() {
           "h-screen! w-screen! max-w-none!",
           "translate-x-0! translate-y-0!",
           "rounded-none! border-none! shadow-none!",
-          "bg-background! p-6 h-svh flex"
+          "bg-background! p-6 h-svh flex",
         )}
       >
         {/* Custom Top-Left Close Button */}

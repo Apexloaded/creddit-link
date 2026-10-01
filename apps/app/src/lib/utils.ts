@@ -1,4 +1,7 @@
-import { ORACLE_PRICE_DECIMALS, TOKEN_DECIMALS } from "@/config/contract.config";
+import {
+  ORACLE_PRICE_DECIMALS,
+  TOKEN_DECIMALS,
+} from "@/config/contract.config";
 import { FormattedAmount } from "@/interfaces/asset.interface";
 import { formatUnits, parseUnits } from "viem";
 
@@ -321,4 +324,15 @@ export function fromBlockDate(timestamp: bigint | number) {
   if (Number(timestamp) == 0) return null;
   const ms = Number(timestamp) * 1000;
   return new Date(ms);
+}
+
+// Helper to scale a 6-decimal amount up to 18-decimal WAD
+export function toWad(amount6Decimals: bigint): bigint {
+  return amount6Decimals * BigInt(10) ** BigInt(12);
+}
+
+// Helper to scale an 18-decimal WAD down to 6-decimal token units (rounding UP for safety)
+export function wadToTokenDecimalsUp(wadAmount: bigint): bigint {
+  const scale = BigInt(10) ** BigInt(12);
+  return (wadAmount + scale - BigInt(1)) / scale;
 }

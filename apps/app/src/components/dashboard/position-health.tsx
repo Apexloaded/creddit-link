@@ -2,29 +2,48 @@
 
 import { IPortfolio } from "@/interfaces/creddit-lens.interface";
 import {
-  ShieldCheck,
+  AlertCircle,
   AlertTriangle,
   ShieldAlert,
-  AlertCircle,
+  ShieldCheck,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { StatBar, StatCard, StatHero, StatRow, StatRows } from "./stat-card";
 
 interface PositionHealthCardProps {
   portfolio?: IPortfolio;
 }
 
+const STATUS = {
+  liquidatable: {
+    label: "Liquidatable",
+    Icon: ShieldAlert,
+    text: "text-destructive",
+    soft: "bg-destructive/10",
+    bar: "bg-destructive",
+  },
+  atRisk: {
+    label: "At risk",
+    Icon: AlertTriangle,
+    text: "text-amber-600",
+    soft: "bg-amber-500/10",
+    bar: "bg-amber-500",
+  },
+  healthy: {
+    label: "Healthy",
+    Icon: ShieldCheck,
+    text: "text-emerald-600",
+    soft: "bg-emerald-500/10",
+    bar: "bg-emerald-500",
+  },
+} as const;
+
 export function PositionHealthCard({ portfolio }: PositionHealthCardProps) {
-  // 1. Convert optional raw BigInt values safely
   const totalDebt = portfolio ? Number(portfolio.debtUsd.raw) : 0;
   const totalCollateral = portfolio ? Number(portfolio.collateralUsd.raw) : 0;
-
-  // 2. Compute Current LTV (Loan-to-Value) %
   const ltv = totalCollateral > 0 ? (totalDebt / totalCollateral) * 100 : 0;
-
-  // 3. Use weighted Liquidation Threshold % directly from contract BPS (e.g. 8000 BPS -> 80%)
   const liquidationThreshold = portfolio ? portfolio.weightedLtvBps / 100 : 0;
 
-  // 4. Handle Health Status & Health Factor
   const isInfiniteHealth =
     !portfolio ||
     totalDebt === 0 ||
@@ -35,11 +54,9 @@ export function PositionHealthCard({ portfolio }: PositionHealthCardProps) {
     ? Infinity
     : portfolio.totalHealthFactorWad / 1e18;
 
-  // Liquidatable if HF < 1.0 or LTV meets/exceeds liquidation threshold
   const isLiquidatable =
     totalDebt > 0 && (healthFactorDecimal < 1.0 || ltv >= liquidationThreshold);
 
-  // At risk if flagged on-chain, or approaching threshold (HF < 1.15 or LTV > 85% of threshold)
   const isAtRisk =
     !isLiquidatable &&
     totalDebt > 0 &&
@@ -47,119 +64,77 @@ export function PositionHealthCard({ portfolio }: PositionHealthCardProps) {
       healthFactorDecimal < 1.15 ||
       ltv >= liquidationThreshold * 0.85);
 
+  const status = isLiquidatable
+    ? STATUS.liquidatable
+    : isAtRisk
+      ? STATUS.atRisk
+      : STATUS.healthy;
+
+  const buffer = Math.max(0, liquidationThreshold - ltv);
+
   return (
-    <section className="border rounded-xl border-foreground/10 bg-background p-6 shadow-md">
-      <div className="flex items-start justify-between">
-        <div className="flex items-center justify-between flex-1">
-          <div className="flex items-center gap-2">
-            <p className="text-sm text-foreground">Position Health</p>
-            {portfolio?.isStale && (
-              <Tooltip>
-                <TooltipTrigger>
-                  <span
-                    className="inline-flex items-center gap-1 text-[11px] text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full"
-                    title=""
-                  >
-                    <AlertCircle className="h-3 w-3" />
-                    Stale Price
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className={"w-60"}>
-                  <p className="text-center">
-                    One or more oracle prices are stale
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-
-          {/* Dynamic Health Badge */}
-          <div className="flex items-center gap-2">
-            {isLiquidatable ? (
-              <>
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-destructive/10">
-                  <ShieldAlert className="h-4 w-4 text-destructive" />
-                </span>
-                <span className="text-sm font-medium text-destructive">
-                  Liquidatable
-                </span>
-              </>
-            ) : isAtRisk ? (
-              <>
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/10">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
-                </span>
-                <span className="text-sm font-medium text-amber-600">
-                  At Risk
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10">
-                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                </span>
-                <span className="text-sm font-medium text-emerald-600">
-                  Healthy
-                </span>
-              </>
-            )}
-            {/* <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-foreground">
-                {isInfiniteHealth ? "∞" : healthFactorDecimal.toFixed(2)}
+    <StatCard
+      title="Position health"
+      titleExtra={
+        portfolio?.isStale && (
+          <Tooltip>
+            <TooltipTrigger>
+              <span className="inline-flex cursor-help text-amber-600">
+                <AlertCircle className="h-4 w-4" />
               </span>
-            </div> */}
-          </div>
-        </div>
-      </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="w-60">
+              <p className="text-center">One or more oracle prices are stale</p>
+            </TooltipContent>
+          </Tooltip>
+        )
+      }
+      action={
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${status.soft} ${status.text}`}
+        >
+          <status.Icon className="h-3.5 w-3.5" />
+          {status.label}
+        </span>
+      }
+    >
+      <StatHero value={`${ltv.toFixed(1)}%`} caption="Current loan-to-value" />
 
-      <div className="space-y-4 pt-5">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-foreground">LTV</span>
-          <span className="text-sm font-medium text-foreground">
-            {ltv.toFixed(1)}%
-          </span>
-        </div>
+      <div className="mb-6 mt-6">
+        <StatBar
+          value={ltv}
+          barClassName={status.bar}
+          marker={liquidationThreshold}
+        />
 
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-foreground">
-            Liquidation Threshold
-          </span>
-          <span className="text-sm font-medium text-foreground">
-            {liquidationThreshold.toFixed(1)}%
-          </span>
-        </div>
-
-        {/* Progress Bar with Liquidation Marker */}
-        <div className="relative pt-2">
-          <div className="h-2 overflow-hidden rounded-full bg-secondary">
-            <div
-              className={`h-full rounded-full transition-all ${
-                isLiquidatable
-                  ? "bg-destructive"
-                  : isAtRisk
-                    ? "bg-amber-500"
-                    : "bg-emerald-500"
-              }`}
-              style={{ width: `${Math.min(ltv, 100)}%` }}
-            />
-          </div>
-
-          {/* Liquidation Threshold Marker Line */}
+        {/* Scale: 0% / threshold marker label / 100% */}
+        <div className="relative mt-2 h-4 text-[11px] text-foreground/40">
+          <span className="absolute left-0">0%</span>
           {liquidationThreshold > 0 && (
-            <div
-              className="absolute top-0 h-5 w-px bg-foreground/60"
-              style={{ left: `${Math.min(liquidationThreshold, 100)}%` }}
-              title={`Liquidation threshold at ${liquidationThreshold.toFixed(1)}%`}
-            />
+            <span
+              className="absolute -translate-x-1/2 whitespace-nowrap font-medium text-foreground/70"
+              style={{
+                left: `${Math.min(92, Math.max(8, liquidationThreshold))}%`,
+              }}
+            >
+              Limit {liquidationThreshold.toFixed(0)}%
+            </span>
           )}
-        </div>
-
-        <div className="flex justify-between text-[11px] text-foreground/40">
-          <span>0%</span>
-          <span>Liquidation threshold</span>
-          <span>100%</span>
+          <span className="absolute right-0">100%</span>
         </div>
       </div>
-    </section>
+
+      <StatRows>
+        <StatRow
+          label="Health factor"
+          value={isInfiniteHealth ? "∞" : `${healthFactorDecimal.toFixed(2)}x`}
+          valueClassName={status.text}
+        />
+        <StatRow
+          label="Buffer to liquidation"
+          value={`${buffer.toFixed(1)} pts`}
+        />
+      </StatRows>
+    </StatCard>
   );
 }

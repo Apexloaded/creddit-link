@@ -6,6 +6,8 @@ export const routes = {
     dashboard: "/",
     deposit: (positionId?: string) =>
       `/deposit${positionId ? `?position=${positionId}` : ""}`,
+    repay: (positionId?: string) =>
+      `/repay${positionId ? `?position=${positionId}` : ""}`,
     borrow: "/borrow",
     earn: "/earn",
   },

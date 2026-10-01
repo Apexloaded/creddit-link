@@ -1,4 +1,4 @@
-import { hardhat } from "viem/chains";
+import { hardhat, robinhoodTestnet } from "viem/chains";
 
 const required = (name: string) => {
   if (!process.env[name]) {

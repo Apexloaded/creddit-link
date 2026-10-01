@@ -8,6 +8,7 @@ import {CredditLiquidityPool} from "../core/CredditLiquidityPool.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
 import {WadMath} from "../libraries/WadMath.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {ZeroAddressProvided} from "./CredditErrors.sol";
 
 /// @title CredditLens
 /// @notice Read-only helper contract for dApp frontends, explorers, and liquidator bots
@@ -64,9 +65,18 @@ contract CredditLens is CredditCore {
     /// @param credditLine Address of the CreditLine contract.
     /// @param liquidityPool Address of the LiquidityPool contract.
     function initialize(
+        address admin,
         address credditLine,
         address liquidityPool
     ) external initializer {
+        if (
+            admin == address(0) ||
+            credditLine == address(0) ||
+            liquidityPool == address(0)
+        ) revert ZeroAddressProvided();
+
+        __CredditCore_init(admin);
+
         cl = ICredditCreditLine(credditLine);
         lp = CredditLiquidityPool(liquidityPool);
     }

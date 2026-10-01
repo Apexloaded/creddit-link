@@ -3,7 +3,7 @@
 import { ContractFunctionReturnType } from "viem";
 import { useConnection, useReadContract } from "wagmi";
 import {
-  CREDDIT_PROTOCOL_ADDRESSES,
+  Contracts,
   ORACLE_PRICE_DECIMALS,
   Stock,
   TOKEN_DECIMALS,
@@ -11,6 +11,7 @@ import {
 import { credditLensAbi } from "@/contracts/abis/credditLensAbi";
 import { IPortfolio, IPosition } from "@/interfaces/creddit-lens.interface";
 import { fromBlockDate, toFormattedAmount } from "@/lib/utils";
+import { useCredditAddresses } from "./use-creddit-addresses";
 
 export type RawPortfolioSummary = ContractFunctionReturnType<
   typeof credditLensAbi,
@@ -28,7 +29,8 @@ export type RawCollateralDetail = RawPositionSummary["collaterals"][number];
 
 export function useCredditLens() {
   const { address } = useConnection();
-  const lensAddress = CREDDIT_PROTOCOL_ADDRESSES.LENS;
+  const { getContract } = useCredditAddresses();
+  const lensAddress = getContract(Contracts.LENS);
 
   /**
    * 1. Fetch user's full portfolio summary

@@ -3,8 +3,13 @@
 import { createContext, useContext, useMemo } from "react";
 import { StorageKey } from "@/config/storage.config";
 import { IAsset } from "@/interfaces/asset.interface";
-import { useErc20Details, useStorage, useAsset } from "@/hooks";
-import { CREDDIT_ADDRESSES } from "@/config/contract.config";
+import {
+  useErc20Details,
+  useStorage,
+  useAsset,
+  useCredditAddresses,
+} from "@/hooks";
+import { Contracts, CREDDIT_ADDRESSES, Tokens } from "@/config/contract.config";
 import { useCredditLens } from "@/hooks/contracts/use-creddit-lens";
 import { IPortfolio, IPosition } from "@/interfaces/creddit-lens.interface";
 
@@ -35,6 +40,9 @@ const CredditContext = createContext<CredditState | undefined>(undefined);
 export function CredditProvider({ children }: { children: React.ReactNode }) {
   const [chain, setChain] = useStorage(StorageKey.APP_CHAIN_ID);
   const { useUserPortfolio, useUserPositions } = useCredditLens();
+  const { getContract, getToken } = useCredditAddresses();
+  const poolAddress = getContract(Contracts.LIQUIDITY_POOL);
+  const usdgTokenAddress = getToken(Tokens.USDG);
 
   const {
     assets = [],
@@ -50,10 +58,7 @@ export function CredditProvider({ children }: { children: React.ReactNode }) {
     isLoading: isUsdgLoading,
     refetch: refetchUsdg,
     unitBalance: usdgUnitBalance,
-  } = useErc20Details(
-    CREDDIT_ADDRESSES[chain]?.USDG,
-    CREDDIT_ADDRESSES[chain]?.LIQUIDITY_POOL,
-  );
+  } = useErc20Details(usdgTokenAddress, poolAddress);
 
   const {
     data: portfolio,

@@ -1,45 +1,39 @@
 import { IPortfolio } from "@/interfaces/creddit-lens.interface";
+import { TrendingUp, Wallet } from "lucide-react";
+import { StatCard, StatHero, StatRow, StatRows } from "./stat-card";
 import { formatCurrency } from "@/lib/utils";
-import { Wallet } from "lucide-react";
 
 type Props = {
   portfolio?: IPortfolio;
+  earnings?: number;
 };
 
-export function BalanceOverview({ portfolio }: Props) {
+export function BalanceOverview({
+  portfolio,
+  earnings = 1240.55,
+}: Props) {
+  const collateral = parseFloat(portfolio?.collateralUsd.formatted ?? "0");
+  const liquidity = parseFloat(portfolio?.liquidityBalance.formatted ?? "0");
+
   return (
-    <section className="border rounded-xl border-foreground/10 bg-background p-6 shadow-md">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <p className="text-sm text-foreground/80">Total Balance</p>
+    <StatCard title="Total balance" icon={<Wallet className="h-4 w-4" />}>
+      <StatHero
+        value={formatCurrency(collateral, true, true)}
+        caption="Across all positions"
+      />
 
-          <div className="mt-4 flex items-end gap-2">
-            <h2 className="font-serif text-3xl tracking-tight text-foreground">
-              {formatCurrency(portfolio?.collateralUsd.formatted)}
-            </h2>
-          </div>
-        </div>
-
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/10 bg-primary">
-          <Wallet className="h-4 w-4 text-background" />
-        </div>
+      <div className="flex-1 pb-4 items-end justify-end flex">
+        <dd className={"font-medium tabular-nums text-sm text-success"}>
+          <span className="inline-flex items-center gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5" />+{formatCurrency(earnings)}
+          </span>
+        </dd>
       </div>
 
-      <div className="mt-4 space-y-3 pt-5">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-foreground/80">Collateral</span>
-          <span className="text-sm font-medium text-foreground">
-            {formatCurrency(portfolio?.collateralUsd.formatted)}
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-foreground/80">USDG Pool</span>
-          <span className="text-sm font-medium text-foreground">
-            {formatCurrency(portfolio?.liquidityBalance.formatted)}
-          </span>
-        </div>
-      </div>
-    </section>
+      <StatRows>
+        <StatRow label="Collateral" value={formatCurrency(collateral)} />
+        <StatRow label="cUSDG" value={formatCurrency(liquidity)} />
+      </StatRows>
+    </StatCard>
   );
 }
