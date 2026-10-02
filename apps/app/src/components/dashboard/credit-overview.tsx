@@ -1,5 +1,4 @@
 import { IPortfolio } from "@/interfaces/creddit-lens.interface";
-import { ICreditLimit } from "@/interfaces/credit-limit.interface";
 import { AlertCircle, ArrowUpRight, CreditCard } from "lucide-react";
 import { Button } from "../ui/button";
 import { Skeleton } from "../ui/skeleton";
@@ -8,7 +7,6 @@ import { StatBar, StatCard, StatHero, StatRow, StatRows } from "./stat-card";
 import { formatCurrency } from "@/lib/utils";
 
 type Props = {
-  creditLimit?: ICreditLimit;
   portfolio?: IPortfolio;
   isLoading: boolean;
 };
