@@ -1,159 +1,73 @@
 # Creddit Link
 
-This Turborepo starter is maintained by the Turborepo core team.
+**Creddit Link** is a decentralized lending protocol designed to provide programmable asset-backed credit. It allows users to deposit tokenized assets (specifically Real World Assets like tokenized stocks) as collateral to draw a unified, risk-adjusted stablecoin (USDG) credit line. This empowers users to unlock liquidity without having to sell their underlying equity positions.
 
-## Using this example
+## Overview
 
-Run the following command:
+Unlike traditional isolated lending markets, Creddit Link consolidates a user's portfolio into a single, unified financial position. Users can pool different eligible RWAs and draw a revolving USDG credit line against the combined, risk-adjusted value of their assets.
 
-```sh
-npx create-turbo@latest
+### Key Features
+
+- **Unified Credit Line**: Deposit multiple registered Stock Tokens into a single position and draw a single USDG credit line against the combined portfolio value.
+- **Dynamic Risk Engine**: Credit limits and liquidation thresholds are calculated dynamically based on real-time oracle prices, collateral volatility, and maximum exposure parameters per asset.
+- **Revolving Debt Accounting**: A global debt index tracks interest continuously, issuing "debt shares" to borrowers. This allows for highly gas-efficient accounting across the entire protocol.
+- **Automated Liquidations**: Anyone can liquidate undercollateralized positions. The system uses dynamic close factors and collateral seizures that reward liquidators while collecting protocol fees for the treasury.
+- **Concentration Risk Management**: The protocol enforces maximum exposure caps per asset to ensure the system remains insulated from the idiosyncratic risks of any single stock or asset class.
+
+## How It Works (The User Journey)
+
+1. **Deposit:** A user deposits one or more whitelisted tokenized stocks (e.g., tokenized AAPL, NVDA) into a Creddit position. 
+2. **Borrow:** The `CredditRiskEngine` evaluates the portfolio and grants a USDG credit limit. The user borrows USDG against this limit. The `CredditLendingRouter` mints/routes the stablecoins to the user.
+3. **Repay:** The user can repay their USDG debt at any time to restore their credit limit. Interest accrues globally via the debt index.
+4. **Liquidate:** If a user's portfolio value drops significantly, making their position unsafe, liquidators can step in to repay a portion of the debt in exchange for seized collateral plus a liquidation bonus.
+
+## Protocol Architecture & Flow
+
+The central hub of the protocol is the `CredditCreditLine` contract, which orchestrates interactions between the Risk Engine, Asset Registry, and Lending Router.
+
+```mermaid
+graph TD
+    User([User])
+    Registry[Creddit Asset Registry]
+    Risk[Creddit Risk Engine]
+    Oracle[Price Oracle]
+    CreditLine[Creddit Credit Line]
+    Router[Creddit Lending Router]
+    USDG((USDG Token))
+    Treasury[Creddit Treasury]
+    Liquidator([Liquidator])
+
+    User -- "1. Deposit Stock Tokens" --> CreditLine
+    CreditLine -- "2. Validate Asset" --> Registry
+    User -- "3. Borrow USDG" --> CreditLine
+    CreditLine -- "4. Get Credit Limit" --> Risk
+    Risk -- "5. Fetch Prices" --> Oracle
+    CreditLine -- "6. Route Borrow" --> Router
+    Router -- "7. Mint/Transfer USDG" --> USDG
+    USDG -. "Receive USDG" .-> User
+
+    Liquidator -- "Liquidate Unsafe Position" --> CreditLine
+    CreditLine -- "Transfer Protocol Fee" --> Treasury
+    CreditLine -. "Seize Collateral Reward" .-> Liquidator
 ```
 
-## What's inside?
+## Repository Structure
 
-This Turborepo includes the following packages/apps:
+The project is structured as a **Turborepo** monorepo containing the smart contracts, frontends, and shared packages.
 
-### Apps and Packages
+### Smart Contracts (`apps/onchain`)
+The core DeFi protocol is written in Solidity and located in `apps/onchain/contracts/core/`.
+- `CredditCreditLine.sol`: Main protocol entry point and position manager.
+- `CredditRiskEngine.sol`: Health factor, credit limit computations, and liquidation logic.
+- `CredditAssetRegistry.sol`: Whitelist and configuration (LTV, max exposure) for eligible collateral.
+- `CredditLendingRouter.sol`: Manages the minting, burning, and routing of the USDG stablecoin.
+- `CredditOracle.sol`: Integrates with external price feeds for real-time asset pricing.
+- `CredditTreasury.sol`: Collects and manages protocol fees.
+- `CredditLens.sol`: A helper contract for easily querying aggregated on-chain data for the frontend.
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `@next/eslint-plugin-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+### Web Applications (`apps/web` & `apps/docs`)
+- Next.js applications serving as the primary user interface and documentation portal for the protocol.
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo build
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo build
-pnpm exec turbo build
-pnpm exec turbo build
-```
-
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo build --filter=docs
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
-
-### Develop
-
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo dev
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo dev
-pnpm exec turbo dev
-pnpm exec turbo dev
-```
-
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo dev --filter=web
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-pnpm exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo link
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo link
-pnpm exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+### Packages (`packages/`)
+- `@repo/ui`: Shared React component library.
+- `@repo/eslint-config` & `@repo/typescript-config`: Shared linting and TypeScript configurations.

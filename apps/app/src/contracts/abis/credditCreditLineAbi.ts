@@ -32,6 +32,11 @@ export const credditCreditLineAbi = [
     type: "error",
   },
   {
+    inputs: [],
+    name: "ArrayLengthMismatch",
+    type: "error",
+  },
+  {
     inputs: [
       {
         internalType: "address",
@@ -1549,6 +1554,29 @@ export const credditCreditLineAbi = [
       },
     ],
     name: "withdrawCollateral",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
+      {
+        internalType: "address[]",
+        name: "assets",
+        type: "address[]",
+      },
+      {
+        internalType: "uint256[]",
+        name: "amounts",
+        type: "uint256[]",
+      },
+    ],
+    name: "withdrawCollateralBatch",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

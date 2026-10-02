@@ -8,8 +8,8 @@
     "clean": "hardhat clean",
     "start:node": "hardhat node",
     "deploy": "hardhat run scripts/deploy.ts",
-    "deploy:ignition": "hardhat ignition deploy ./ignition/modules/CredditProtocol.ts --network localhost",
-    "upgrade:ignition": "hardhat ignition deploy ./ignition/modules/CredditOracleUpgrade.ts --network localhost"
+    "deploy:ignition": "hardhat ignition deploy ./ignition/modules/CredditProtocol.ts --network robinhoodTestnet",
+    "upgrade:ignition": "hardhat ignition deploy ./ignition/modules/CredditOracleUpgrade.ts --network robinhoodTestnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.15",

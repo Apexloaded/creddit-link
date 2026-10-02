@@ -376,6 +376,9 @@ export const useCredditLine = () => {
     };
   };
 
+  /**
+   * 5. Fetch the current debt of a position (for repay forms / dashboards)
+   */
   const useCurrentPositionDebt = (positionId: string | null) => {
     return useReadContract({
       address: creditLineAddress,
@@ -389,11 +392,227 @@ export const useCredditLine = () => {
     });
   };
 
+  /**
+   * 6. Withdraw Collateral Hook:
+   * Supports single asset withdrawal via withdrawCollateral or batch withdrawal via withdrawCollateralBatch
+   */
+  const useWithdraw = () => {
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [stepStatus, setStepStatus] = useState<"idle" | "withdrawing">(
+      "idle",
+    );
+    const [error, setError] = useState<Error | null>(null);
+
+    const { mutateAsync } = useWriteContractSync();
+
+    const withdraw = useCallback(
+      async ({
+        positionId,
+        withdrawals,
+      }: {
+        positionId: string;
+        withdrawals: { asset: Address; amount: string; decimals: number }[];
+      }) => {
+        // Parse with each asset's own decimals and drop empty rows
+        const items = withdrawals
+          .map((w) => ({
+            asset: w.asset,
+            amount: parseAmount(cleanPrice(w.amount, true), w.decimals),
+          }))
+          .filter((w) => w.amount > BigInt(0));
+
+        if (items.length === 0) {
+          throw new Error("Enter an amount to withdraw.");
+        }
+
+        const uniqueAssets = new Set(items.map((i) => i.asset.toLowerCase()));
+        if (uniqueAssets.size !== items.length) {
+          throw new Error("Duplicate assets in withdrawal.");
+        }
+
+        setError(null);
+        setIsProcessing(true);
+
+        try {
+          const parsedPositionId = BigInt(positionId);
+          setStepStatus("withdrawing");
+
+          const result =
+            items.length === 1
+              ? await mutateAsync({
+                  address: creditLineAddress,
+                  abi: credditCreditLineAbi,
+                  functionName: "withdrawCollateral",
+                  args: [parsedPositionId, items[0].asset, items[0].amount],
+                })
+              : await mutateAsync({
+                  address: creditLineAddress,
+                  abi: credditCreditLineAbi,
+                  functionName: "withdrawCollateralBatch",
+                  args: [
+                    parsedPositionId,
+                    items.map((i) => i.asset),
+                    items.map((i) => i.amount),
+                  ],
+                });
+
+          const receipt = await waitForTransactionReceipt(config, {
+            hash: result.transactionHash,
+          });
+
+          if (receipt.status !== "success") {
+            throw new Error("Withdrawal transaction reverted.");
+          }
+
+          await queryClient.invalidateQueries({ type: "active" });
+
+          return receipt;
+        } catch (err) {
+          console.error("Error during withdrawal:", err);
+          setError(err instanceof Error ? err : new Error(String(err)));
+          throw err;
+        } finally {
+          setIsProcessing(false);
+          setStepStatus("idle");
+        }
+      },
+      [config, creditLineAddress, mutateAsync, queryClient],
+    );
+
+    return { withdraw, isProcessing, stepStatus, error };
+  };
+
+  /**
+   * 7. Liquidate Hook:
+   * Approves USDG if allowance is insufficient, then executes liquidate call
+   */
+  const useLiquidate = (collateralAsset?: Address) => {
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [stepStatus, setStepStatus] = useState<
+      "idle" | "approving" | "liquidating"
+    >("idle");
+    const [error, setError] = useState<Error | null>(null);
+
+    const { mutateAsync } = useWriteContractSync();
+
+    let { decimals, allowance, refetch, isLoading } = useErc20Details(
+      usdgTokenAddress,
+      creditLineAddress,
+    );
+
+    const liquidate = useCallback(
+      async ({
+        positionId,
+        collateralAsset: overrideAsset,
+        debtToCover,
+      }: {
+        positionId: string;
+        collateralAsset?: Address;
+        debtToCover: string;
+      }) => {
+        const targetAsset = overrideAsset || collateralAsset;
+        const cleanedAmount = cleanPrice(debtToCover, true);
+        const parsedDebtToCover = parseAmount(cleanedAmount, decimals);
+        const parsedPositionId = BigInt(positionId);
+
+        if (
+          !usdgTokenAddress ||
+          !targetAsset ||
+          parsedDebtToCover === BigInt(0) ||
+          isLoading
+        ) {
+          return;
+        }
+
+        setError(null);
+        setIsProcessing(true);
+
+        try {
+          // 1. Step One: Check & Approve USDG if allowance is insufficient
+          if (allowance < parsedDebtToCover) {
+            setStepStatus("approving");
+
+            const nonce = await getTransactionCount(config, {
+              address: address!,
+              blockTag: "pending",
+            });
+
+            const { transactionHash } = await mutateAsync({
+              address: usdgTokenAddress,
+              abi: erc20Abi,
+              functionName: "approve",
+              args: [creditLineAddress, parsedDebtToCover],
+              nonce,
+            });
+
+            await waitForTransactionReceipt(config, { hash: transactionHash });
+
+            const { data } = await refetch();
+            allowance = (data?.[0]?.result as bigint | undefined) ?? BigInt(0);
+
+            if (allowance < parsedDebtToCover) {
+              throw new Error(
+                "Allowance still insufficient after approval confirmed on-chain.",
+              );
+            }
+          }
+
+          // 2. Step Two: Execute Liquidation
+          setStepStatus("liquidating");
+
+          const { transactionHash } = await mutateAsync({
+            address: creditLineAddress,
+            abi: credditCreditLineAbi,
+            functionName: "liquidate",
+            args: [parsedPositionId, targetAsset, parsedDebtToCover],
+          });
+
+          const receipt = await waitForTransactionReceipt(config, {
+            hash: transactionHash,
+          });
+
+          await queryClient.invalidateQueries({
+            type: "active",
+          });
+
+          return receipt;
+        } catch (err) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+          throw err;
+        } finally {
+          setIsProcessing(false);
+          setStepStatus("idle");
+        }
+      },
+      [
+        address,
+        usdgTokenAddress,
+        creditLineAddress,
+        collateralAsset,
+        decimals,
+        allowance,
+        isLoading,
+        mutateAsync,
+        refetch,
+        queryClient,
+      ],
+    );
+
+    return {
+      liquidate,
+      isProcessing,
+      stepStatus,
+      error,
+    };
+  };
+
   return {
     useOpenPosition,
     useDeposit,
     useBorrow,
     useRepay,
     useCurrentPositionDebt,
+    useWithdraw,
+    useLiquidate,
   };
 };

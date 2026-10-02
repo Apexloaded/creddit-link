@@ -313,7 +313,6 @@ contract Borrow50MAndRepayTest is Test {
         usdg.mint(borrower, bufferedAmount - usdg.balanceOf(borrower));
 
         // --- STEP 3: Metamask Delay (60 Seconds On-Chain Delay) ---
-        uint256 timeBeforeMined = block.timestamp;
         vm.warp(block.timestamp + 60 seconds);
 
         uint256 debtWhenMinedWad = creditLine.currentPositionDebt(pid);

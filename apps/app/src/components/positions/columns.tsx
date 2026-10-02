@@ -408,7 +408,7 @@ export function getPositionColumns(actions: PositionActions = {}) {
                     // hidden by default; interactive controls can't be clicked while invisible
                     "pointer-events-none opacity-0 transition-opacity duration-150",
                     // visible while the row is hovered
-                    "[tr:hover_&]:pointer-events-auto [tr:hover_&]:opacity-100",
+                    "[tr:hover_&]:pointer-events-auto [tr:hover_&]:opacity-100 [tr:f",
                     // keyboard users: reveal when anything in the row has focus
                     "[tr:focus-within_&]:pointer-events-auto [tr:focus-within_&]:opacity-100",
                   ].join(" ")}

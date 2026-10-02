@@ -23,7 +23,8 @@ import {CredditRoles} from "../libraries/CredditRole.sol";
 import {
     ZeroAddressProvided,
     ZeroAmount,
-    AssetNotEnabled
+    AssetNotEnabled,
+    ArrayLengthMismatch
 } from "./CredditErrors.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
 import {
@@ -266,37 +267,37 @@ contract CredditCreditLine is CredditCore {
         address asset,
         uint256 amount
     ) external whenNotPaused nonReentrant onlyPositionOwner(positionId) {
-        if (amount == 0) revert ZeroAmount();
-        uint256 currentBalance = positionCollateralBalance[positionId][asset];
-        if (amount > currentBalance)
-            revert InsufficientCollateralBalance(asset, amount, currentBalance);
-
-        uint256 newBalance = currentBalance - amount;
-        positionCollateralBalance[positionId][asset] = newBalance;
-        totalDeposited[asset] -= amount;
-
-        // If fully withdrawn, remove from active set to free up a slot for the user
-        if (newBalance == 0) {
-            _removeCollateralAsset(positionId, asset);
-        }
-
-        // Solvency check: with the ledger already reduced, the remaining
-        // collateral must still support the outstanding debt.
-        _syncDebtIndex();
-        uint256 debtWad = currentPositionDebt(positionId);
-        if (debtWad != 0) {
-            (uint256 liqWeighted, , ) = riskEngine.riskAdjustedValue(
-                address(this),
-                positionId,
-                false
-            );
-            if (CreditRiskMath.isLiquidatable(liqWeighted, debtWad))
-                revert PositionUnsafeAfterWithdrawal();
-        }
+        _debitCollateral(positionId, asset, amount);
+        _postWithdrawalChecks(positionId);
 
         IERC20(asset).safeTransfer(msg.sender, amount);
+    }
 
-        emit CollateralWithdrawnEvent(positionId, msg.sender, asset, amount);
+    /// @notice Withdraws multiple collateral assets from a position in a single transaction.
+    /// @param positionId The ID of the position.
+    /// @param assets Array of collateral asset addresses to withdraw.
+    /// @param amounts Array of amounts corresponding to each asset to withdraw.
+    function withdrawCollateralBatch(
+        uint256 positionId,
+        address[] calldata assets,
+        uint256[] calldata amounts
+    ) public whenNotPaused nonReentrant onlyPositionOwner(positionId) {
+        uint256 length = assets.length;
+        if (length == 0 || length != amounts.length)
+            revert ArrayLengthMismatch();
+
+        // 1. Effects: update the ledger for every asset
+        for (uint256 i; i < length; ++i) {
+            _debitCollateral(positionId, assets[i], amounts[i]);
+        }
+
+        // 2. Check: solvency once, across the whole position
+        _postWithdrawalChecks(positionId);
+
+        // 3. Interactions: transfer tokens last
+        for (uint256 i; i < length; ++i) {
+            IERC20(assets[i]).safeTransfer(msg.sender, amounts[i]);
+        }
     }
 
     /// @notice Borrows USDG against collateral.
@@ -724,6 +725,55 @@ contract CredditCreditLine is CredditCore {
         return newIndex > debtIndexWad ? newIndex : debtIndexWad;
     }
 
+    /// @dev Validates and applies one ledger debit. Does not transfer tokens.
+    function _debitCollateral(
+        uint256 positionId,
+        address asset,
+        uint256 amount
+    ) internal {
+        if (amount == 0) revert ZeroAmount();
+
+        uint256 currentBalance = positionCollateralBalance[positionId][asset];
+        if (amount > currentBalance)
+            revert InsufficientCollateralBalance(asset, amount, currentBalance);
+
+        uint256 newBalance;
+        unchecked {
+            newBalance = currentBalance - amount; // safe: checked above
+        }
+        positionCollateralBalance[positionId][asset] = newBalance;
+        totalDeposited[asset] -= amount;
+
+        // Fully withdrawn: free up the collateral slot
+        if (newBalance == 0) _removeCollateralAsset(positionId, asset);
+
+        emit CollateralWithdrawnEvent(positionId, msg.sender, asset, amount);
+    }
+
+    /// @dev Solvency check on the remaining collateral, or close the position
+    /// if it has no debt and no collateral left.
+    function _postWithdrawalChecks(uint256 positionId) internal {
+        _syncDebtIndex();
+        uint256 debtWad = currentPositionDebt(positionId);
+
+        if (debtWad != 0) {
+            (uint256 liqWeighted, , ) = riskEngine.riskAdjustedValue(
+                address(this),
+                positionId,
+                false
+            );
+            if (CreditRiskMath.isLiquidatable(liqWeighted, debtWad))
+                revert PositionUnsafeAfterWithdrawal();
+        } else if (
+            debtShares[positionId] == 0 && _isCollateralEmpty(positionId)
+        ) {
+            Position storage p = positions[positionId];
+            p.isClosed = true;
+            p.closedAt = uint64(block.timestamp);
+            emit PositionClosedEvent(positionId, msg.sender, block.timestamp);
+        }
+    }
+
     function _isCollateralEmpty(
         uint256 positionId
     ) internal view returns (bool) {
@@ -761,7 +811,9 @@ contract CredditCreditLine is CredditCore {
         uint256 sharesToBurn;
 
         // --- FULL REPAYMENT VIA SENTINEL VALUE OR OVERPAYMENT ---
-        if (amount == type(uint256).max ||amount.toWad(usdgDecimals) >= debtWad) {
+        if (
+            amount == type(uint256).max || amount.toWad(usdgDecimals) >= debtWad
+        ) {
             // Fetch exact token debt tracked by router/adapters to avoid rounding mismatch
             uint256 routerDebt = router.totalDebtOf(owner);
             uint256 debtInTokens = debtWad.fromWadUp(usdgDecimals);

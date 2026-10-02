@@ -26,7 +26,7 @@ const envDefaults = {
   app: {
     name: "Creddit Link",
     hostname: undefined,
-    defaultChain: hardhat.id,
+    defaultChain: robinhoodTestnet.id,
   },
   walletConnect: {
     projectId: "6a034e0c62ffce25a8871e9f767b4a57",

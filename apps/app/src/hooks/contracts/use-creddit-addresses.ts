@@ -8,6 +8,7 @@ export function useCredditAddresses(overrideChainId?: number) {
   const activeChainId = useChainId();
   console.log("useCredditAddresses activeChainId:", activeChainId);
   const chainId = overrideChainId ?? activeChainId;
+  console.log(chainId, "useCredditAddresses chainId:", chainId);
   const addresses =
     CREDDIT_ADDRESSES[chainId] ?? CREDDIT_ADDRESSES[envConfig.app.defaultChain];
 
