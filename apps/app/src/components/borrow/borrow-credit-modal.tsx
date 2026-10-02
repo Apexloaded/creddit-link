@@ -8,15 +8,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCreddit } from "@/context/creddit.context";
 import BorrowCreditForm from "./borrow-credit-form";
-import { BorrowSchemaType } from "@/schemas";
-import { useCredditLine } from "@/hooks/contracts/use-creddit-line";
 
 export default function BorrowCreditModal() {
   const router = useRouter();
   const [open, setOpen] = useState(true);
-  const { isListLoading, positions } = useCreddit();
-  const { useBorrow } = useCredditLine();
-  const { borrow, isProcessing, stepStatus } = useBorrow();
+  const { positions } = useCreddit();
 
   const handleClose = () => {
     setOpen(false);
@@ -27,16 +23,6 @@ export default function BorrowCreditModal() {
         router.push("/");
       }
     }, 150);
-  };
-
-  const getButtonText = () => {
-    if (stepStatus === "borrowing") return "1/1 Borrowing...";
-    if (isListLoading) return "Loading...";
-    return "Borrow";
-  };
-
-  const onBorrow = async (data: BorrowSchemaType) => {
-    await borrow(data);
   };
 
   return (
@@ -68,13 +54,7 @@ export default function BorrowCreditModal() {
 
         {/* Modal Body */}
         <div className="flex flex-1 mx-auto max-w-3xl w-full">
-          <BorrowCreditForm
-            onCloseModal={handleClose}
-            onBorrow={onBorrow}
-            borrowText={getButtonText()}
-            positions={positions}
-            isBorrowing={isProcessing}
-          />
+          <BorrowCreditForm onCloseModal={handleClose} positions={positions} />
         </div>
       </DialogContent>
     </Dialog>

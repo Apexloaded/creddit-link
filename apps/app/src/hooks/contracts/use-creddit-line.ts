@@ -17,12 +17,14 @@ import { getTransactionCount, waitForTransactionReceipt } from "wagmi/actions";
 import { DepositSchemaType } from "@/schemas/deposit.schema";
 import { BorrowSchemaType, RepaySchemaType } from "@/schemas";
 import { useCredditAddresses } from "./use-creddit-addresses";
+import { useQueryClient } from "@tanstack/react-query";
 
 export const useCredditLine = () => {
   const { address } = useConnection();
   const { getContract, getToken } = useCredditAddresses();
   const creditLineAddress = getContract(Contracts.CREDIT_LINE);
   const usdgTokenAddress = getToken(Tokens.USDG);
+  const queryClient = useQueryClient();
 
   /**
    * 1. Hook to directly open a new position without depositing collateral
@@ -31,11 +33,21 @@ export const useCredditLine = () => {
     const { mutateAsync, isPending, error, data } = useWriteContractSync();
 
     const openPosition = async () => {
-      return await mutateAsync({
+      const { transactionHash } = await mutateAsync({
         address: creditLineAddress,
         abi: credditCreditLineAbi,
         functionName: "openPosition",
       });
+
+      const receipt = await waitForTransactionReceipt(config, {
+        hash: transactionHash,
+      });
+
+      await queryClient.invalidateQueries({
+        type: "active",
+      });
+
+      return receipt;
     };
 
     return {
@@ -135,6 +147,10 @@ export const useCredditLine = () => {
             hash: transactionHash,
           });
 
+          await queryClient.invalidateQueries({
+            type: "active",
+          });
+
           return receipt;
         } catch (err) {
           setError(err instanceof Error ? err : new Error(String(err)));
@@ -201,6 +217,10 @@ export const useCredditLine = () => {
 
           const receipt = await waitForTransactionReceipt(config, {
             hash: transactionHash,
+          });
+
+          await queryClient.invalidateQueries({
+            type: "active",
           });
 
           return receipt;
@@ -320,6 +340,10 @@ export const useCredditLine = () => {
 
           const receipt = await waitForTransactionReceipt(config, {
             hash: transactionHash,
+          });
+
+          await queryClient.invalidateQueries({
+            type: "active",
           });
 
           return receipt;

@@ -5,7 +5,7 @@ import {
   useConfig,
   useConnection,
   useReadContracts,
-  useWriteContract,
+  useWriteContractSync,
 } from "wagmi";
 import { useErc20Details } from "./use-erc20";
 import { Contracts, TOKEN_DECIMALS, Tokens } from "@/config/contract.config";
@@ -15,11 +15,13 @@ import { erc20Abi } from "@/contracts/abis/erc20Abi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { formatUnits } from "viem";
 import { useCredditAddresses } from "./use-creddit-addresses";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function useCredditLiquidityPool() {
   const { getContract, getToken } = useCredditAddresses();
   const credditLiquidityPoolAddress = getContract(Contracts.LIQUIDITY_POOL);
   const usdgTokenAddress = getToken(Tokens.USDG);
+  const queryClient = useQueryClient();
 
   function useDeposit() {
     const { address } = useConnection();
@@ -35,7 +37,7 @@ export function useCredditLiquidityPool() {
       credditLiquidityPoolAddress,
     );
 
-    const { writeContractAsync } = useWriteContract();
+    const { mutateAsync } = useWriteContractSync();
 
     const deposit = useCallback(
       async (amount: string) => {
@@ -52,14 +54,14 @@ export function useCredditLiquidityPool() {
           if (currentAllowance < parsedAmount) {
             setStepStatus("approving");
 
-            const approveHash = await writeContractAsync({
+            const { transactionHash } = await mutateAsync({
               address: usdgTokenAddress,
               abi: erc20Abi,
               functionName: "approve",
               args: [credditLiquidityPoolAddress, parsedAmount],
             });
 
-            await waitForTransactionReceipt(config, { hash: approveHash });
+            await waitForTransactionReceipt(config, { hash: transactionHash });
 
             // Use the freshly-fetched value directly rather than trusting a
             // stale closure on the next render — avoids a race where the
@@ -77,16 +79,22 @@ export function useCredditLiquidityPool() {
           // 2. Step Two: Execute Deposit
           setStepStatus("depositing");
 
-          const depositHash = await writeContractAsync({
+          const { transactionHash } = await mutateAsync({
             address: credditLiquidityPoolAddress,
             abi: credditLiquidityPoolAbi,
             functionName: "deposit",
             args: [parsedAmount, address],
           });
 
-          await waitForTransactionReceipt(config, { hash: depositHash });
+          const receipt = await waitForTransactionReceipt(config, {
+            hash: transactionHash,
+          });
 
-          return depositHash;
+          await queryClient.invalidateQueries({
+            type: "active",
+          });
+
+          return receipt;
         } catch (err) {
           setError(err instanceof Error ? err : new Error(String(err)));
           throw err;
@@ -101,7 +109,7 @@ export function useCredditLiquidityPool() {
         usdgTokenAddress,
         config,
         credditLiquidityPoolAddress,
-        writeContractAsync,
+        mutateAsync,
         refetch,
       ],
     );

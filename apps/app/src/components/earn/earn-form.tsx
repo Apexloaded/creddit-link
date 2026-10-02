@@ -4,26 +4,40 @@ import { useState } from "react";
 import { TrendingUpIcon, ShieldCheckIcon, WalletIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { cleanPrice, formatCurrency } from "@/lib/utils";
-import { Input } from "../ui/input";
 import { useCreddit } from "@/context/creddit.context";
 import { useCredditLiquidityPool } from "@/hooks/contracts/use-creddit-liquidity-pool";
 import { useEarnCalculations } from "@/hooks";
+import { useForm } from "react-hook-form";
+import {
+  poolDepositSchemaResolver,
+  PoolDepositSchemaType,
+} from "@/schemas/pool.schema";
+import { CurrencyInputField } from "../ui/currency-input";
 
 type Props = {
   onCloseModal?: () => void;
-  onDeposit?: (amount: string) => void;
-  isDepositing?: boolean;
 };
 
-export default function EarnForm({
-  onCloseModal,
-  onDeposit,
-  isDepositing = false,
-}: Props) {
-  const [amount, setAmount] = useState<string>("");
+export default function EarnForm({ onCloseModal }: Props) {
   const [activePct, setActivePct] = useState<number | null>(null);
   const { usdgUnitBalance } = useCreddit();
-  const { usePoolData } = useCredditLiquidityPool();
+  const { usePoolData, useDeposit } = useCredditLiquidityPool();
+  const { deposit, isProcessing, stepStatus } = useDeposit();
+
+  const {
+    setValue,
+    watch,
+    control,
+    handleSubmit,
+    formState: { isValid },
+  } = useForm<PoolDepositSchemaType>({
+    resolver: poolDepositSchemaResolver,
+    defaultValues: { amount: "" },
+    mode: "onChange",
+  });
+
+  const amount = watch("amount");
+
   const {
     currentDebt,
     availableLiquidity,
@@ -32,7 +46,6 @@ export default function EarnForm({
     isLoading: isPoolLoading,
   } = usePoolData();
 
-  console.log(availableLiquidity, borrowRateBps, totalAssets);
   const {
     supplyAPY,
     utilizationPct,
@@ -60,20 +73,28 @@ export default function EarnForm({
   const estimatedAnnualYield = (depositAmount * mockData.netApy) / 100;
   const estimatedMonthlyYield = estimatedAnnualYield / 12;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (onDeposit && depositAmount > 0) {
-      onDeposit(amount);
+  const onSubmit = async (data: PoolDepositSchemaType) => {
+    try {
+      const receipt = await deposit(data.amount);
+      onCloseModal?.();
+    } catch (error) {
+      console.error("Deposit workflow failed or rejected:", error);
     }
   };
 
   const handleMaxClick = () => {
-    setAmount(usdgUnitBalance);
+    setValue("amount", usdgUnitBalance);
+  };
+
+  const getButtonText = () => {
+    if (stepStatus === "approving") return "1/2 Approving Token...";
+    if (stepStatus === "depositing") return "2/2 Supplying...";
+    return "Supply USDG";
   };
 
   return (
     <form
-      onSubmit={handleSubmit}
+      onSubmit={handleSubmit(onSubmit)}
       className="space-y-6 flex flex-col gap-3 flex-1"
     >
       <div className="flex flex-col flex-1 overflow-hidden border border-line bg-background shadow-sm">
@@ -124,11 +145,11 @@ export default function EarnForm({
 
                 <div className="mt-2 flex items-baseline gap-2">
                   <p className="text-5xl md:text-6xl">$</p>
-                  <Input
+
+                  <CurrencyInputField
+                    control={control}
+                    name="amount"
                     className="h-16 -ml-2 rounded-none focus-visible:ring-0 border-0 shadow-none bg-transparent px-0 font-heading text-5xl font-normal tracking-tight md:text-6xl"
-                    placeholder="0.00"
-                    value={formatCurrency(amount, false)}
-                    onChange={(e) => setAmount(e.target.value)}
                   />
                 </div>
 
@@ -147,7 +168,8 @@ export default function EarnForm({
                   type="button"
                   onClick={() => {
                     setActivePct(pct);
-                    setAmount(
+                    setValue(
+                      "amount",
                       ((Number(usdgUnitBalance) * pct) / 100).toString(),
                     );
                   }}
@@ -243,6 +265,7 @@ export default function EarnForm({
 
           <div className="flex w-full items-center gap-4 px-6 pt-4">
             <Button
+              disabled={isProcessing}
               onClick={onCloseModal}
               type="button"
               size={"xl"}
@@ -253,11 +276,11 @@ export default function EarnForm({
             </Button>
             <Button
               type="submit"
-              disabled={depositAmount <= 0 || isDepositing}
+              disabled={depositAmount <= 0 || isProcessing || !isValid}
               size={"xl"}
               className={"flex-1"}
             >
-              {isDepositing ? "Supplying..." : "Supply USDG"}
+              {getButtonText()}
             </Button>
           </div>
         </div>

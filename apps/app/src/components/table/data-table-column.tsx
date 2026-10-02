@@ -42,7 +42,7 @@ export function ColumnActionButton({
 }: {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  onClick: () => void;
+  onClick?: () => void;
   tone?: keyof typeof tones;
 }) {
   return (
@@ -55,7 +55,7 @@ export function ColumnActionButton({
           aria-label={label}
           onClick={(e) => {
             e.stopPropagation();
-            onClick();
+            onClick?.();
           }}
           className={`${tones[tone]}`}
         >

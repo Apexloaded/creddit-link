@@ -10,7 +10,10 @@ function makeQueryClient() {
     defaultOptions: {
       queries: {
         gcTime: 1000 * 60 * 60 * 24, // cache kept in memory for 24hrs after unmount
-        staleTime: 1000 * 30, // data considered fresh for 30 sec globally
+        staleTime: 0,
+        refetchInterval: 1000 * 60 * 5, // refetch every 5 minutes
+        refetchIntervalInBackground: true,
+        refetchOnMount: true,
         refetchOnWindowFocus: true,
         refetchOnReconnect: true, // refetch when network comes back
         retry: (failureCount, error: any) => {

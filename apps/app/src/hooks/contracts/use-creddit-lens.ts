@@ -59,7 +59,6 @@ export function useCredditLens() {
       args: [address!],
       query: {
         enabled: Boolean(address),
-        // staleTime: 1000 * 60 * 5,
         select: (data): IPosition[] =>
           data.map((pos) => parsePositionSummary(pos)),
       },
@@ -77,7 +76,6 @@ export function useCredditLens() {
       args: [startId, count],
       query: {
         enabled: count > BigInt(0),
-        staleTime: 1000 * 60 * 5,
         select: (data): IPosition[] =>
           data.map((pos) => parsePositionSummary(pos)),
       },
@@ -95,7 +93,6 @@ export function useCredditLens() {
       args: [startId, count],
       query: {
         enabled: count > BigInt(0),
-        staleTime: 1000 * 30, // Shorter stale time for liquidations
         select: (data): IPosition[] =>
           data.map((pos) => parsePositionSummary(pos)),
       },

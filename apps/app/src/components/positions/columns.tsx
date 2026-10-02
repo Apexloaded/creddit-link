@@ -5,10 +5,14 @@ import { IPosition } from "@/interfaces/creddit-lens.interface";
 import { createColumnHelper } from "@tanstack/react-table";
 import {
   Check,
+  CircleXIcon,
   Copy,
+  DropletIcon,
+  EllipsisIcon,
   HandCoinsIcon,
   LayersArrowUpIcon,
   PlusCircleIcon,
+  SquareMinusIcon,
   Zap,
 } from "lucide-react";
 import { DataTableFeatures } from "../table/data-table-features";
@@ -31,6 +35,16 @@ import {
   ColumnHeaderRight,
 } from "../table/data-table-column";
 import { BlockDate } from "../ui/block-date";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import { Button } from "../ui/button";
 
 const columnHelper = createColumnHelper<DataTableFeatures, IPosition>();
 
@@ -406,13 +420,6 @@ export function getPositionColumns(actions: PositionActions = {}) {
                       onClick={() => actions.onDeposit!(position)}
                     />
                   )}
-                  {actions.onRepay && (
-                    <ColumnActionButton
-                      label="Repay credit"
-                      icon={HandCoinsIcon}
-                      onClick={() => actions.onRepay!(position)}
-                    />
-                  )}
                   {actions.onLiquidate && position.isLiquidatable && (
                     <ColumnActionButton
                       label="Liquidate"
@@ -421,7 +428,45 @@ export function getPositionColumns(actions: PositionActions = {}) {
                       onClick={() => actions.onLiquidate!(position)}
                     />
                   )}
-                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger>
+                      <ColumnActionButton
+                        label="More actions"
+                        icon={EllipsisIcon}
+                      />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      className={"bg-background w-auto"}
+                      align={"end"}
+                      side={"bottom"}
+                    >
+                      <DropdownMenuGroup>
+                        {actions.onRepay && (
+                          <DropdownMenuItem
+                            onClick={() => actions.onRepay!(position)}
+                            className={"focus:bg-secondary"}
+                          >
+                            <DropletIcon /> Repay credit
+                          </DropdownMenuItem>
+                        )}
+
+                        <DropdownMenuItem className={"focus:bg-secondary"}>
+                          <SquareMinusIcon /> Withdraw collateral
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className={"focus:bg-secondary"}>
+                          <Zap />
+                          Liquidate position
+                        </DropdownMenuItem>
+                      </DropdownMenuGroup>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuGroup>
+                        <DropdownMenuItem variant="destructive">
+                          <CircleXIcon className="h-4 w-4" />
+                          Close position
+                        </DropdownMenuItem>
+                      </DropdownMenuGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               );
             },

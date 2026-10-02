@@ -5,15 +5,12 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cleanPrice, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import EarnForm from "./earn-form";
-import { useCredditLiquidityPool } from "@/hooks/contracts/use-creddit-liquidity-pool";
 
 export default function EarnModal() {
   const router = useRouter();
   const [open, setOpen] = useState(true);
-  const { useDeposit } = useCredditLiquidityPool();
-  const { deposit, isProcessing, stepStatus } = useDeposit();
 
   const handleClose = () => {
     setOpen(false);
@@ -24,10 +21,6 @@ export default function EarnModal() {
         router.push("/");
       }
     }, 150);
-  };
-
-  const handleDeposit = (amount: string) => {
-    deposit(cleanPrice(amount));
   };
 
   return (
@@ -59,11 +52,7 @@ export default function EarnModal() {
 
         {/* Modal Body */}
         <div className="flex flex-1 mx-auto max-w-3xl w-full">
-          <EarnForm
-            onCloseModal={handleClose}
-            onDeposit={handleDeposit}
-            isDepositing={isProcessing}
-          />
+          <EarnForm onCloseModal={handleClose} />
         </div>
       </DialogContent>
     </Dialog>

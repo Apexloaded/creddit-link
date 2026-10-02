@@ -8,26 +8,23 @@ import { useForm } from "react-hook-form";
 import { formatCurrency } from "@/lib/utils";
 import { CurrencyInputField } from "../ui/currency-input";
 import { IPosition } from "@/interfaces/creddit-lens.interface";
+import { useCredditLine } from "@/hooks";
 
 type Props = {
   onCloseModal?: () => void;
-  onBorrow: (value: BorrowSchemaType) => void;
-  borrowText?: string;
   positions: IPosition[];
-  isBorrowing: boolean;
 };
 
 export default function BorrowCreditForm({
   positions = [],
   onCloseModal,
-  onBorrow,
-  borrowText = "Borrow",
-  isBorrowing,
 }: Props) {
   // Store selected position ID in state (single position allowed)
   const [selectedPositionId, setSelectedPositionId] = useState<number | null>(
     positions.length > 0 ? positions[0].id : null,
   );
+  const { useBorrow } = useCredditLine();
+  const { borrow, isProcessing, stepStatus } = useBorrow();
 
   // Initialize form
   const {
@@ -101,9 +98,24 @@ export default function BorrowCreditForm({
         ? "bg-amber-500"
         : "bg-red-500";
 
+  const getButtonText = () => {
+    if (stepStatus === "borrowing") return "1/1 Borrowing...";
+    // if (isListLoading) return "Loading...";
+    return "Borrow";
+  };
+
+  const onSubmit = async (data: BorrowSchemaType) => {
+    try {
+      const receipt = await borrow(data);
+      onCloseModal?.();
+    } catch (error) {
+      console.error("Borrow workflow failed or rejected:", error);
+    }
+  };
+
   return (
     <form
-      onSubmit={handleSubmit(onBorrow)}
+      onSubmit={handleSubmit(onSubmit)}
       className="space-y-6 flex flex-col gap-3 flex-1"
     >
       <div className="flex flex-col flex-1 overflow-hidden border border-line bg-background shadow-sm">
@@ -332,14 +344,14 @@ export default function BorrowCreditForm({
               type="submit"
               disabled={
                 !isValid ||
-                isBorrowing ||
+                isProcessing ||
                 borrowAmount <= 0 ||
                 borrowAmount > maxBorrowCapacity
               }
               size={"xl"}
               className={"flex-1"}
             >
-              {borrowText}
+              {getButtonText()}
             </Button>
           </div>
         </div>
