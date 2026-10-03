@@ -1,10 +1,10 @@
 "use client";
 
-import { useConnection, useReadContract, useWriteContractSync } from "wagmi";
+import { useConnection, useReadContract, useWriteContract, useWriteContractSync } from "wagmi";
 import { Contracts, Tokens } from "@/config";
 import { credditCreditLineAbi } from "@/contracts/abis/credditCreditLineAbi";
 import { useCallback, useState } from "react";
-import { Address, erc20Abi, maxUint256 } from "viem";
+import { Address, BaseError, ContractFunctionRevertedError, erc20Abi, maxUint256 } from "viem";
 import { useErc20Details } from "./use-erc20";
 import {
   cleanPrice,
@@ -13,7 +13,7 @@ import {
   wadToTokenDecimalsUp,
 } from "@/lib/utils";
 import { config } from "@/config/wagmi.config";
-import { getTransactionCount, waitForTransactionReceipt } from "wagmi/actions";
+import { getTransactionCount, simulateContract, waitForTransactionReceipt } from "wagmi/actions";
 import { DepositSchemaType } from "@/schemas/deposit.schema";
 import { BorrowSchemaType, RepaySchemaType } from "@/schemas";
 import { useCredditAddresses } from "./use-creddit-addresses";
@@ -72,7 +72,7 @@ export const useCredditLine = () => {
 
     const { mutateAsync } = useWriteContractSync();
 
-    let { decimals, allowance, refetch, isLoading } = useErc20Details(
+    let { decimals, symbol, allowance, refetch, isLoading } = useErc20Details(
       asset,
       creditLineAddress,
     );
@@ -97,6 +97,10 @@ export const useCredditLine = () => {
           if (allowance < parsedAmount) {
             setStepStatus("approving");
 
+            const approveToastId = toast.loading(
+              `Approving ${symbol} spending allowance...`,
+            );
+
             // Initiate approve transaction
             const { transactionHash } = await mutateAsync({
               address: asset,
@@ -105,8 +109,15 @@ export const useCredditLine = () => {
               args: [creditLineAddress, parsedAmount],
             });
 
+            toast.loading("Approval submitted. Waiting for confirmation...", {
+              id: approveToastId,
+            });
+
             // Wait for the transaction to be mined
-            await waitForTransactionReceipt(config, { hash: transactionHash });
+            await waitForTransactionReceipt(config, {
+              hash: transactionHash,
+              timeout: 120_000,
+            });
 
             // Refetch to get the updated allowance
             const { data } = await refetch();
@@ -118,6 +129,10 @@ export const useCredditLine = () => {
                 "Allowance still insufficient after approval confirmed on-chain.",
               );
             }
+
+            toast.success(`${symbol} allowance approved!`, {
+              id: approveToastId,
+            });
           }
 
           // 2. Step Two: Execute Deposit
@@ -146,6 +161,7 @@ export const useCredditLine = () => {
 
           const receipt = await waitForTransactionReceipt(config, {
             hash: transactionHash,
+            timeout: 120_000,
           });
 
           await queryClient.invalidateQueries({
@@ -170,6 +186,7 @@ export const useCredditLine = () => {
         allowance,
         refetch,
         isLoading,
+        symbol,
       ],
     );
 
@@ -441,21 +458,21 @@ export const useCredditLine = () => {
           const result =
             items.length === 1
               ? await mutateAsync({
-                  address: creditLineAddress,
-                  abi: credditCreditLineAbi,
-                  functionName: "withdrawCollateral",
-                  args: [parsedPositionId, items[0].asset, items[0].amount],
-                })
+                address: creditLineAddress,
+                abi: credditCreditLineAbi,
+                functionName: "withdrawCollateral",
+                args: [parsedPositionId, items[0].asset, items[0].amount],
+              })
               : await mutateAsync({
-                  address: creditLineAddress,
-                  abi: credditCreditLineAbi,
-                  functionName: "withdrawCollateralBatch",
-                  args: [
-                    parsedPositionId,
-                    items.map((i) => i.asset),
-                    items.map((i) => i.amount),
-                  ],
-                });
+                address: creditLineAddress,
+                abi: credditCreditLineAbi,
+                functionName: "withdrawCollateralBatch",
+                args: [
+                  parsedPositionId,
+                  items.map((i) => i.asset),
+                  items.map((i) => i.amount),
+                ],
+              });
 
           const receipt = await waitForTransactionReceipt(config, {
             hash: result.transactionHash,
@@ -487,7 +504,7 @@ export const useCredditLine = () => {
    * 7. Liquidate Hook:
    * Approves USDG if allowance is insufficient, then executes liquidate call
    */
-  const useLiquidate = (collateralAsset?: Address) => {
+  const useLiquidate = (positionId: string, collateralAsset?: Address) => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [stepStatus, setStepStatus] = useState<
       "idle" | "approving" | "liquidating"
@@ -501,6 +518,8 @@ export const useCredditLine = () => {
       creditLineAddress,
     );
 
+    const { refetch: refetchDebt } = useCurrentPositionDebt(positionId);
+
     const liquidate = useCallback(
       async ({
         positionId,
@@ -513,13 +532,16 @@ export const useCredditLine = () => {
       }) => {
         const targetAsset = overrideAsset || collateralAsset;
         const cleanedAmount = cleanPrice(debtToCover, true);
-        const parsedDebtToCover = parseAmount(cleanedAmount, decimals);
+        const parsedAmount = parseAmount(cleanedAmount, decimals);
         const parsedPositionId = BigInt(positionId);
+
+        const { data: liveDebt } = await refetchDebt();
 
         if (
           !usdgTokenAddress ||
+          parsedAmount === BigInt(0) ||
           !targetAsset ||
-          parsedDebtToCover === BigInt(0) ||
+          !liveDebt ||
           isLoading
         ) {
           return;
@@ -529,29 +551,33 @@ export const useCredditLine = () => {
         setIsProcessing(true);
 
         try {
-          // 1. Step One: Check & Approve USDG if allowance is insufficient
-          if (allowance < parsedDebtToCover) {
-            setStepStatus("approving");
+          const { data: liveDebt } = await refetchDebt();
 
-            const nonce = await getTransactionCount(config, {
-              address: address!,
-              blockTag: "pending",
-            });
+          const currentDebtWad = liveDebt ? liveDebt.raw : BigInt(0);
+          const currentDebtToken = wadToTokenDecimalsUp(currentDebtWad);
+
+          // 1. Calculate required approval & repay amounts
+          // Add 0.1% buffer (1001 / 1000) for full repayment to handle pending block drift
+          const targetRepayAmount =
+            (currentDebtToken * BigInt(1001)) / BigInt(1000);
+
+          // 1. Step One: Check & Approve USDG if allowance is insufficient
+          if (allowance < targetRepayAmount) {
+            setStepStatus("approving");
 
             const { transactionHash } = await mutateAsync({
               address: usdgTokenAddress,
               abi: erc20Abi,
               functionName: "approve",
-              args: [creditLineAddress, parsedDebtToCover],
-              nonce,
+              args: [creditLineAddress, targetRepayAmount],
             });
 
-            await waitForTransactionReceipt(config, { hash: transactionHash });
+            await waitForTransactionReceipt(config, { hash: transactionHash, timeout: 200_000 });
 
             const { data } = await refetch();
             allowance = (data?.[0]?.result as bigint | undefined) ?? BigInt(0);
 
-            if (allowance < parsedDebtToCover) {
+            if (allowance < targetRepayAmount) {
               throw new Error(
                 "Allowance still insufficient after approval confirmed on-chain.",
               );
@@ -560,12 +586,31 @@ export const useCredditLine = () => {
 
           // 2. Step Two: Execute Liquidation
           setStepStatus("liquidating");
+          const args = [parsedPositionId, targetAsset, targetRepayAmount];
+
+          // Surfaces the real revert reason before MetaMask ever opens
+          try {
+            await simulateContract(config, {
+              address: creditLineAddress,
+              abi: credditCreditLineAbi,
+              functionName: "liquidate",
+              args: [parsedPositionId, targetAsset, targetRepayAmount],
+            });
+          } catch (e) {
+            if (e instanceof BaseError) {
+              const rev = e.walk((x) => x instanceof ContractFunctionRevertedError);
+              if (rev instanceof ContractFunctionRevertedError) {
+                console.error("Liquidation revert:", rev.data?.errorName, rev.data?.args, rev.raw);
+              }
+            }
+            throw e;
+          }
 
           const { transactionHash } = await mutateAsync({
             address: creditLineAddress,
             abi: credditCreditLineAbi,
             functionName: "liquidate",
-            args: [parsedPositionId, targetAsset, parsedDebtToCover],
+            args: [parsedPositionId, targetAsset, targetRepayAmount],
           });
 
           const receipt = await waitForTransactionReceipt(config, {

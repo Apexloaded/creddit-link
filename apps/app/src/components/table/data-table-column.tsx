@@ -32,6 +32,7 @@ const tones = {
   default:
     "text-foreground hover:bg-background hover:text-foreground dark:text-slate-300",
   danger: "text-red-600 hover:bg-destructive/40 hover:text-destructive",
+  success: "text-emerald-600 bg-emerald-100/40 hover:bg-emerald-400/40 hover:text-emerald-600",
 } as const;
 
 export function ColumnActionButton({

@@ -56,9 +56,9 @@ function ViewTableComponent<TData extends RowData>({
                       key={header.id}
                       className={cn(
                         isFirstColumn &&
-                          "sticky left-0 z-20 bg-secondary shadow-[3px_0_8px_-2px_rgba(0,0,0,0.15)] dark:shadow-[3px_0_8px_-2px_rgba(0,0,0,0.4)]",
+                          "sticky left-0 pl-8 z-20 bg-secondary shadow-[3px_0_8px_-2px_rgba(0,0,0,0.15)] dark:shadow-[3px_0_8px_-2px_rgba(0,0,0,0.4)]",
                         isLastColumn &&
-                          "sticky right-0 z-20 bg-gradient-to-r from-transparent via-secondary/90 to-secondary pl-10 pr-5 shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.15)] dark:shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.4)]",
+                          "sticky right-0 z-20 bg-gradient-to-r from-transparent via-secondary/90 to-secondary pl-10 pr-8 shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.15)] dark:shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.4)]",
                       )}
                     >
                       {header.isPlaceholder ? null : (
@@ -90,10 +90,10 @@ function ViewTableComponent<TData extends RowData>({
                         className={cn(
                           // First column sticky + shadow
                           isFirstColumn &&
-                            "sticky left-0 z-10 bg-background group-hover:bg-muted-light group-has-[[data-state=open]]:bg-muted-light group-has-[[aria-expanded=true]]:bg-muted-light group-data-[state=selected]:bg-muted-light transition-colors duration-150 shadow-[3px_0_8px_-2px_rgba(0,0,0,0.15)] dark:shadow-[3px_0_8px_-2px_rgba(0,0,0,0.4)]",
+                            "sticky left-0 pl-8 z-10 bg-background group-hover:bg-muted-light group-has-[[data-state=open]]:bg-muted-light group-has-[[aria-expanded=true]]:bg-muted-light group-data-[state=selected]:bg-muted-light transition-colors duration-150 shadow-[3px_0_8px_-2px_rgba(0,0,0,0.15)] dark:shadow-[3px_0_8px_-2px_rgba(0,0,0,0.4)]",
                           // Last column sticky gradient + strong left shadow
                           isLastColumn &&
-                            "sticky right-0 z-10 pl-8 bg-gradient-to-r from-transparent via-background/80 to-background group-hover:via-muted/80 group-hover:to-muted group-has-[[data-state=open]]:via-muted/80 group-has-[[data-state=open]]:to-muted group-has-[[aria-expanded=true]]:via-muted/80 group-has-[[aria-expanded=true]]:to-muted group-data-[state=selected]:via-muted/80 group-data-[state=selected]:to-muted transition-colors duration-150 shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.15)] dark:shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.4)]",
+                            "sticky right-0 z-10 pl-8 pr-8 bg-gradient-to-r from-transparent via-background/80 to-background group-hover:via-muted/80 group-hover:to-muted group-has-[[data-state=open]]:via-muted/80 group-has-[[data-state=open]]:to-muted group-has-[[aria-expanded=true]]:via-muted/80 group-has-[[aria-expanded=true]]:to-muted group-data-[state=selected]:via-muted/80 group-data-[state=selected]:to-muted transition-colors duration-150 shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.15)] dark:shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.4)]",
                         )}
                       >
                         {isLastColumn ? (

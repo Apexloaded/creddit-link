@@ -21,14 +21,9 @@ pragma solidity ^0.8.27;
 
 import {console} from "forge-std/console.sol";
 import {Test} from "forge-std/Test.sol";
-import {
-    ERC1967Proxy
-} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {
-    CredditCreditLine,
-    NotPositionOwner
-} from "../core/CredditCreditLine.sol";
+import {CredditCreditLine, NotPositionOwner} from "../core/CredditCreditLine.sol";
 import {CredditInterestRateModel} from "../core/CredditInterestRateModel.sol";
 import {CredditLendingRouter} from "../core/CredditLendingRouter.sol";
 import {CredditLiquidityPool} from "../core/CredditLiquidityPool.sol";
@@ -39,11 +34,7 @@ import {WadMath} from "../libraries/WadMath.sol";
 import {MockERC20} from "../mock/MockERC20.sol";
 import {MockOracle} from "../mock/MockOracle.sol";
 
-import {
-    PositionUnsafeAfterWithdrawal,
-    ExceedsCreditLimit,
-    RouterRepayShortfall
-} from "../core/CredditCreditLine.sol";
+import {PositionUnsafeAfterWithdrawal, ExceedsCreditLimit, RouterRepayShortfall} from "../core/CredditCreditLine.sol";
 import {NothingToRepay} from "../core/CredditLendingRouter.sol";
 
 contract DebtSyncTest is Test {
@@ -653,36 +644,190 @@ contract DebtSyncTest is Test {
     /* ==================== LIQUIDATION ==================== */
 
     function test_Liquidation_WhenCollateralPriceDrops() public {
+        console.log(
+            "\n========================================================"
+        );
+        console.log("=== SCENARIO: $30M BORROW & 360-DAY DEBT LIQUIDATION ===");
+        console.log("========================================================");
+
+        // 1. Setup liquidity pool & collateral
+        uint256 poolDeposit = 50_000_000 * U;
+        usdg.mint(admin, poolDeposit);
+        usdg.approve(address(pool), poolDeposit);
+        pool.deposit(poolDeposit, admin);
+
+        stockToken.mint(alice, 100_000e18);
+        oracle.setPrice(address(stockToken), 500e18);
+
         vm.startPrank(alice);
-        stockToken.approve(address(creditLine), 10e18);
+        stockToken.approve(address(creditLine), 100_000e18);
         uint256 positionId = creditLine.openPositionAndDeposit(
             address(stockToken),
-            10e18
+            100_000e18
         );
-        creditLine.borrow(positionId, 1000 * U);
+
+        uint256 borrowAmount = 30_000_000 * U;
+        creditLine.borrow(positionId, borrowAmount);
         vm.stopPrank();
 
-        // Value = 10 * $80 * 0.85 = $680 < $1,000 debt -> liquidatable
-        oracle.setPrice(address(stockToken), 80e18);
+        {
+            uint256 initialDebtWad = creditLine.currentPositionDebt(positionId);
+            console.log("\n[Day 0] Alice Position Created:");
+            console.log(
+                "  Initial Debt Borrowed:",
+                _fmt(borrowAmount, 6),
+                "USDG"
+            );
+            console.log(
+                "  Initial Position Debt:",
+                _fmt(initialDebtWad, 18),
+                "WAD USDG"
+            );
+            console.log(
+                "  Is Liquidatable?      ",
+                riskEngine.isLiquidatable(
+                    address(creditLine),
+                    positionId,
+                    initialDebtWad
+                )
+                    ? "YES"
+                    : "NO"
+            );
+        }
+
+        // 2. Warp time by 360 days
+        console.log("\n[Time Warp] Fast forwarding 360 days...");
+        vm.warp(block.timestamp + 360 days);
+
+        uint256 debtAfter360DaysWad = creditLine.currentPositionDebt(
+            positionId
+        );
+
+        {
+            uint256 initialDebtWad = creditLine.currentPositionDebt(positionId); // or re-fetch/reuse
+            uint256 accruedInterestWad = debtAfter360DaysWad - initialDebtWad;
+            console.log("\n[Day 360] Position Status Before Price Drop:");
+            console.log(
+                "  Position Debt (WAD): ",
+                _fmt(debtAfter360DaysWad, 18),
+                "USDG"
+            );
+            console.log(
+                "  Accrued Interest:    ",
+                _fmt(accruedInterestWad, 18),
+                "USDG"
+            );
+            console.log(
+                "  Is Liquidatable?     ",
+                riskEngine.isLiquidatable(
+                    address(creditLine),
+                    positionId,
+                    debtAfter360DaysWad
+                )
+                    ? "YES"
+                    : "NO"
+            );
+        }
+
+        // 3. Drop collateral price
+        console.log(
+            "\n[Market Shock] Collateral price drops from $500 to $320..."
+        );
+        oracle.setPrice(address(stockToken), 320e18);
+
+        bool liquidatableNow = riskEngine.isLiquidatable(
+            address(creditLine),
+            positionId,
+            debtAfter360DaysWad
+        );
+        console.log(
+            "  Is Position Liquidatable Now?",
+            liquidatableNow ? "YES" : "NO"
+        );
+        assertTrue(
+            liquidatableNow,
+            "Position must be liquidatable after market drop"
+        );
+
+        // 4. Liquidation Execution
+        uint256 debtToCoverTokens;
+        {
+            uint256 closeFactorWad = riskEngine.liquidationCloseFactorWad();
+            uint256 maxDebtToCoverWad = debtAfter360DaysWad.wadMulDown(
+                closeFactorWad
+            );
+            debtToCoverTokens = maxDebtToCoverWad.fromWadUp(usdg.decimals());
+
+            console.log("\n[Liquidation Plan]:");
+            console.log("  Close Factor:        50%");
+            console.log(
+                "  Max Debt To Cover:   ",
+                _fmt(maxDebtToCoverWad, 18),
+                "USDG"
+            );
+            console.log(
+                "  Debt To Cover Tokens:",
+                _fmt(debtToCoverTokens, 6),
+                "USDG"
+            );
+        }
+
+        usdg.mint(liquidator, debtToCoverTokens);
+
+        vm.startPrank(liquidator);
+        usdg.approve(address(creditLine), debtToCoverTokens);
+
+        uint256 liquidatorUsdgBefore = usdg.balanceOf(liquidator);
+        uint256 liquidatorStockBefore = stockToken.balanceOf(liquidator);
+        uint256 treasuryStockBefore = stockToken.balanceOf(address(treasury));
+
+        console.log("\n[Executing Liquidation Call]...");
+        creditLine.liquidate(
+            positionId,
+            address(stockToken),
+            debtToCoverTokens
+        );
+        vm.stopPrank();
+
+        uint256 liquidatorUsdgAfter = usdg.balanceOf(liquidator);
+        uint256 liquidatorStockAfter = stockToken.balanceOf(liquidator);
+        uint256 treasuryStockAfter = stockToken.balanceOf(address(treasury));
+        uint256 remainingDebtWad = creditLine.currentPositionDebt(positionId);
+
+        console.log("\n[Day 360] Post-Liquidation Results:");
+        console.log(
+            "  USDG Spent by Liquidator:  ",
+            _fmt(liquidatorUsdgBefore - liquidatorUsdgAfter, 6),
+            "USDG"
+        );
+        console.log(
+            "  Stock Seized by Liquidator:",
+            _fmt(liquidatorStockAfter - liquidatorStockBefore, 18),
+            "aAAPL"
+        );
+        console.log(
+            "  Protocol Fee to Treasury:  ",
+            _fmt(treasuryStockAfter - treasuryStockBefore, 18),
+            "aAAPL"
+        );
+        console.log(
+            "  Remaining Position Debt:   ",
+            _fmt(remainingDebtWad, 18),
+            "WAD USDG"
+        );
 
         assertTrue(
-            riskEngine.isLiquidatable(
-                address(creditLine),
-                positionId,
-                creditLine.currentPositionDebt(positionId)
-            )
+            liquidatorStockAfter > liquidatorStockBefore,
+            "Liquidator should receive seized collateral"
         );
-
-        // close factor 50% -> max $500
-        vm.startPrank(liquidator);
-        usdg.approve(address(creditLine), 500 * U);
-
-        uint256 liquidatorBalanceBefore = stockToken.balanceOf(liquidator);
-        creditLine.liquidate(positionId, address(stockToken), 500 * U);
-        uint256 liquidatorBalanceAfter = stockToken.balanceOf(liquidator);
-
-        assertTrue(liquidatorBalanceAfter > liquidatorBalanceBefore);
-        vm.stopPrank();
+        assertTrue(
+            treasuryStockAfter >= treasuryStockBefore,
+            "Treasury should receive protocol fee"
+        );
+        assertTrue(
+            remainingDebtWad < debtAfter360DaysWad,
+            "Position debt should be reduced"
+        );
     }
 
     /* ==================== DIAGNOSTICS ==================== */

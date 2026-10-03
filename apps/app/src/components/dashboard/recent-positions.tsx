@@ -5,7 +5,6 @@ import { PositionTable } from "../positions/position-table";
 
 function RecentPositions() {
   const { positions } = useCreddit();
-  console.log(positions);
   return (
     <div className="pt-10">
       <div className="mb-5">

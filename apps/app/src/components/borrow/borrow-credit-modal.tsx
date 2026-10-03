@@ -54,7 +54,10 @@ export default function BorrowCreditModal() {
 
         {/* Modal Body */}
         <div className="flex flex-1 mx-auto max-w-3xl w-full">
-          <BorrowCreditForm onCloseModal={handleClose} positions={positions} />
+          <BorrowCreditForm
+            onCloseModal={handleClose}
+            positions={positions.filter((f) => !f.isClosed)}
+          />
         </div>
       </DialogContent>
     </Dialog>

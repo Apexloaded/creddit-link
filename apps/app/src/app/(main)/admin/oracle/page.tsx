@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 export default function MockOracleAdmin({
-  feedAddress = "0xE6a2a2B3192EF6b8dB675781A33fa9849e317AF0",
+  feedAddress = "0x8ef66290507B9f52F3418500C958fc22b2F08597",
 }: {
   feedAddress: `0x${string}`;
 }) {

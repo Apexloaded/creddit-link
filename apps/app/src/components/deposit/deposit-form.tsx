@@ -147,7 +147,8 @@ export function DepositForm({ onClose }: DepositFormProps) {
     Boolean(errors.amount) ||
     isBalanceExceeded ||
     isListLoading ||
-    isProcessing;
+    isProcessing ||
+    activePosition?.isClosed;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-3">

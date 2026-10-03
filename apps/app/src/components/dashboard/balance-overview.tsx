@@ -22,13 +22,13 @@ export function BalanceOverview({
         caption="Across all positions"
       />
 
-      <div className="flex-1 pb-4 items-end justify-end flex">
+      {/* <div className="flex-1 pb-4 items-end justify-end flex">
         <dd className={"font-medium tabular-nums text-sm text-success"}>
           <span className="inline-flex items-center gap-1.5">
             <TrendingUp className="h-3.5 w-3.5" />+{formatCurrency(earnings)}
           </span>
         </dd>
-      </div>
+      </div> */}
 
       <StatRows>
         <StatRow label="Collateral" value={formatCurrency(collateral)} />

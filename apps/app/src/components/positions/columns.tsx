@@ -21,6 +21,7 @@ import {
   cn,
   formatCurrency,
   toFormattedAmount,
+  truncate,
 } from "@/lib/utils";
 import { Stock, TOKEN_DECIMALS, toRhLogo } from "@/config";
 import {
@@ -44,6 +45,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import useClipboard from "@/hooks/use-clipboard";
 
 const columnHelper = createColumnHelper<DataTableFeatures, IPosition>();
 
@@ -84,14 +86,7 @@ function TokenLogo({
 }
 
 function AddressCell({ addr }: { addr: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    await navigator.clipboard.writeText(addr);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
-  };
+  const { copy, isCopied } = useClipboard();
 
   return (
     <div className="group flex items-center gap-2">
@@ -103,14 +98,14 @@ function AddressCell({ addr }: { addr: string }) {
         className="font-mono text-xs text-slate-700 dark:text-slate-300"
         title={addr}
       >
-        {`${addr.slice(0, 6)}…${addr.slice(-4)}`}
+        {truncate(addr)}
       </span>
       <button
-        onClick={copy}
+        onClick={() => copy(addr)}
         aria-label="Copy address"
         className="rounded p-1 text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100 dark:hover:bg-slate-800"
       >
-        {copied ? (
+        {isCopied ? (
           <Check className="h-3 w-3 text-green-600" />
         ) : (
           <Copy className="h-3 w-3" />
@@ -213,31 +208,31 @@ export function getPositionColumns(actions: PositionActions = {}) {
   return columnHelper.columns([
     columnHelper.accessor("id", {
       id: "id",
-      header: () => (
-        <ColumnHeaderLeft className="pl-5">Position</ColumnHeaderLeft>
-      ),
+      header: () => <ColumnHeaderLeft>Position</ColumnHeaderLeft>,
       cell: (info) => {
+        const isLiquidatable = info.row.original.isLiquidatable;
+        const isClosed = info.row.original.isClosed;
         return (
-          <div className="flex items-center gap-3 pl-5 w-40">
+          <div className="flex items-center gap-3 w-40">
             <span className="font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">
               <span className="text-slate-400">#</span>
               {info.getValue()}
             </span>
             <Tooltip>
               <TooltipTrigger>
-                {info.row.original.isLiquidatable ? (
+                {isLiquidatable ? (
                   <span className="inline-flex justify-center items-center gap-1.5 rounded-full bg-destructive/10 size-4 text-xs font-semibold text-destructive ring-1 ring-inset ring-destructive/40">
                     <span className="relative flex h-2 w-2">
                       <span className="absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
                       <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
                     </span>
                   </span>
-                ) : info.row.original.isClosed ? (
+                ) : isClosed ? (
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex justify-center items-center gap-1.5 rounded-full bg-destructive/10 size-4 text-xs font-semibold text-destructive ring-1 ring-inset ring-destructive/40">
+                    <span className="inline-flex justify-center items-center gap-1.5 rounded-full bg-line/10 size-4 text-xs font-semibold text-destructive ring-1 ring-inset ring-line/40">
                       <span className="relative flex h-2 w-2">
-                        <span className="absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
+                        <span className="absolute inline-flex h-full w-full rounded-full bg-line" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-line" />
                       </span>
                     </span>
                     <p className="flex-1">Closed</p>
@@ -249,9 +244,11 @@ export function getPositionColumns(actions: PositionActions = {}) {
                 )}
               </TooltipTrigger>
               <TooltipContent side="bottom" className={"w-auto"}>
-                {!info.row.original.isLiquidatable
-                  ? "Position is healthy"
-                  : "Position is at risk of liquidation"}
+                {isLiquidatable
+                  ? "Position is at risk of liquidation"
+                  : isClosed
+                    ? "Position is closed"
+                    : "Position is healthy"}
               </TooltipContent>
             </Tooltip>
 
@@ -422,10 +419,11 @@ export function getPositionColumns(actions: PositionActions = {}) {
             cell: ({ row }) => {
               const position = row.original;
               const isInfinite = row.original.isInfiniteHealth;
+              const isClosed = row.original.isClosed;
 
               return (
                 <div className={"flex items-center justify-end gap-1"}>
-                  {actions.onDeposit && (
+                  {actions.onDeposit && !isClosed && (
                     <ColumnActionButton
                       label="Add fund"
                       icon={PlusCircleIcon}
@@ -464,6 +462,7 @@ export function getPositionColumns(actions: PositionActions = {}) {
                         )}
                         {actions.onWithdraw && (
                           <DropdownMenuItem
+                            disabled={isClosed}
                             onClick={() => actions.onWithdraw!(position)}
                             className={"focus:bg-secondary"}
                           >
@@ -485,6 +484,7 @@ export function getPositionColumns(actions: PositionActions = {}) {
                         {actions.onClose && (
                           <DropdownMenuItem
                             variant="destructive"
+                            disabled={isClosed}
                             onClick={() => actions.onClose!(position)}
                           >
                             <CircleXIcon className="h-4 w-4" />
