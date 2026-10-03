@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRightIcon, CheckIcon } from "lucide-react";
+import { routes } from "@/lib/route";
 
 type Asset = {
   symbol: string;
@@ -142,7 +143,7 @@ export default function CredditSimulator() {
           </div>
 
           <Link
-            href="/borrow"
+            href={routes.app}
             className="link-btn inline-flex shrink-0 items-center justify-center"
           >
             Launch App

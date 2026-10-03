@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRightIcon } from "lucide-react";
 import CredditSimulator from "./creddit-simulator";
 import AssetTicker from "./asset-ticker";
+import { routes } from "@/lib/route";
 
 const stockSupported = [
   {
@@ -13,35 +14,35 @@ const stockSupported = [
         icon: "",
         id: "NVDA",
         price: "789.79",
-        ltv: "38.8"
+        ltv: "38.8",
       },
       {
         id: "AAPL",
         price: "339.58",
-        ltv: "10.2"
+        ltv: "10.2",
       },
       {
         id: "MSFT",
         price: "500.36",
-        ltv: "12"
+        ltv: "12",
       },
       {
         id: "TSLA",
         price: "378.50",
-        ltv: "60.58"
+        ltv: "60.58",
       },
       {
         id: "SPY",
         price: "775.99",
-        ltv: "77"
+        ltv: "77",
       },
       {
         id: "AI",
         price: "0.55",
-        ltv: "38.14"
-      }
+        ltv: "38.14",
+      },
     ],
-  }
+  },
 ];
 
 function HomeHero() {
@@ -100,21 +101,20 @@ function HomeHero() {
           style={{ animation: "rise 0.9s ease forwards 0.6s" }}
         >
           <span className="font-medium">Creddit Link</span> lets you borrow{" "}
-          <span className="font-medium">USDG</span> against multiple assets as unified collateral giving you liquidity without forcing you to sell your positions.
+          <span className="font-medium">USDG</span> against multiple assets as
+          unified collateral giving you liquidity without forcing you to sell
+          your positions.
         </p>
 
         <div
           className="mt-11 flex items-center justify-center gap-7 opacity-0 flex-wrap"
           style={{ animation: "rise 0.9s ease forwards 0.78s" }}
         >
-          <Link
-            href="#demo"
-            className="link-btn flex-nowrap"
-          >
+          <Link href={routes.app} className="link-btn flex-nowrap">
             Get Started
             <ArrowRightIcon className="size-5 ml-1" />
           </Link>
-          <Link href="#platform" className="border-b hover:border-foreground">
+          <Link href={routes.app} className="border-b hover:border-foreground">
             Explore Protocol
           </Link>
         </div>

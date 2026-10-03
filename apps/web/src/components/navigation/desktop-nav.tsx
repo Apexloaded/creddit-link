@@ -117,19 +117,11 @@ function DesktopNav({ navItems }: Readonly<DesktopNavProps>) {
       </NavigationMenu>
       <div className="flex">
         <Link
-          href={routes.auth.register}
+          href={routes.app}
           rel="noopener noreferrer"
           className="text-[0.85rem] bg-foreground text-background font-medium px-4.5 py-2.25 border border-foreground rounded-full hover:bg-primary hover:border-primary hover:text-background transition-all duration-400"
         >
           Launch App
-        </Link>
-        <Link
-          href={routes.auth.login}
-          rel="noopener noreferrer"
-          className="hidden sm:flex items-center gap-1 text-[0.85rem] font-medium px-4.5 py-2.25 ml-3 border border-foreground rounded-full hover:bg-background transition-all duration-400"
-        >
-          <Wallet2Icon size={18} />
-          Connect
         </Link>
       </div>
     </div>
