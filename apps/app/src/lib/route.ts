@@ -10,6 +10,11 @@ export const routes = {
       `/repay${positionId ? `?position=${positionId}` : ""}`,
     borrow: "/borrow",
     earn: "/earn",
+    withdrawCollateral: (positionId?: string) =>
+      `/withdraw/collateral${positionId ? `?position=${positionId}` : ""}`,
+    positions: "/positions",
+    positionDetails: (positionId: string) => `/positions/${positionId}`,
+    settings: "/settings",
   },
 } as const;
 

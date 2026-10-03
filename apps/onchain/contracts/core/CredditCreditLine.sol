@@ -211,6 +211,45 @@ contract CredditCreditLine is CredditCore {
         depositCollateral(positionId, asset, amount);
     }
 
+    /// @notice Closes a position by repaying all active debt, returning all collateral to the owner, and setting position state to closed.
+    /// @param positionId The ID of the position to close.
+    function closePosition(
+        uint256 positionId
+    ) external whenNotPaused nonReentrant onlyPositionOwner(positionId) {
+        Position storage pos = positions[positionId];
+
+        // 1. Repay all outstanding debt if any exists
+        uint256 debtWad = currentPositionDebt(positionId);
+        if (debtWad > 0) {
+            _repay(msg.sender, positionId, type(uint256).max);
+        }
+
+        // 2. Transfer all registered collateral assets back to the user
+        address[] memory assets = _positionCollateralAssets[positionId]
+            .values();
+        uint256 length = assets.length;
+
+        for (uint256 i = 0; i < length; ++i) {
+            address asset = assets[i];
+            uint256 amount = positionCollateralBalance[positionId][asset];
+
+            if (amount > 0) {
+                // Update internal ledgers and remove collateral asset tracking
+                _debitCollateral(positionId, asset, amount);
+
+                // Transfer token balance back to position owner
+                IERC20(asset).safeTransfer(msg.sender, amount);
+            }
+        }
+
+        // 3. Mark position as closed if not already closed by _repay or _debitCollateral
+        if (!pos.isClosed) {
+            pos.isClosed = true;
+            pos.closedAt = uint64(block.timestamp);
+            emit PositionClosedEvent(positionId, msg.sender, block.timestamp);
+        }
+    }
+
     /// @notice Deposits collateral into the protocol.
     /// @param positionId The ID of the position.
     /// @param asset The asset to deposit.

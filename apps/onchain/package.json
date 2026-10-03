@@ -9,7 +9,7 @@
     "start:node": "hardhat node",
     "deploy": "hardhat run scripts/deploy.ts",
     "deploy:ignition": "hardhat ignition deploy ./ignition/modules/CredditProtocol.ts --network robinhoodTestnet",
-    "upgrade:ignition": "hardhat ignition deploy ./ignition/modules/CredditOracleUpgrade.ts --network robinhoodTestnet"
+    "upgrade:ignition": "hardhat ignition deploy ./ignition/modules/CredditLineUpgradeV2.ts --network robinhoodTestnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.15",

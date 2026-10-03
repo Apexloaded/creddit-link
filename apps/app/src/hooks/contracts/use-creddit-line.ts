@@ -18,6 +18,7 @@ import { DepositSchemaType } from "@/schemas/deposit.schema";
 import { BorrowSchemaType, RepaySchemaType } from "@/schemas";
 import { useCredditAddresses } from "./use-creddit-addresses";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export const useCredditLine = () => {
   const { address } = useConnection();
@@ -606,6 +607,147 @@ export const useCredditLine = () => {
     };
   };
 
+  const useClosePosition = (positionId: string | null) => {
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [stepStatus, setStepStatus] = useState<
+      "idle" | "approving" | "closing"
+    >("idle");
+    const [error, setError] = useState<Error | null>(null);
+
+    const { mutateAsync } = useWriteContractSync();
+
+    let { decimals, allowance, refetch, isLoading } = useErc20Details(
+      usdgTokenAddress,
+      creditLineAddress,
+    );
+
+    const { refetch: refetchDebt } = useCurrentPositionDebt(positionId);
+
+    const closePosition = useCallback(
+      async (positionId: string) => {
+        const parsedPositionId = BigInt(positionId);
+
+        if (!usdgTokenAddress || isLoading) {
+          return;
+        }
+
+        setError(null);
+        setIsProcessing(true);
+
+        try {
+          const { data: liveDebt } = await refetchDebt();
+
+          const currentDebtWad = liveDebt ? liveDebt.raw : BigInt(0);
+          const currentDebtToken = wadToTokenDecimalsUp(currentDebtWad);
+
+          // 1. Calculate required approval & repay amounts
+          // Add 0.1% buffer (1001 / 1000) for full repayment to handle pending block drift
+          const targetRepayAmount =
+            (currentDebtToken * BigInt(1001)) / BigInt(1000);
+
+          // 2. Step One: Check & Approve if allowance is insufficient
+          if (allowance < targetRepayAmount) {
+            setStepStatus("approving");
+
+            // Toast: Requesting approval
+            const approveToastId = toast.loading(
+              "Approving USDG spending allowance...",
+            );
+
+            const { transactionHash } = await mutateAsync({
+              address: usdgTokenAddress,
+              abi: erc20Abi,
+              functionName: "approve",
+              args: [creditLineAddress, targetRepayAmount],
+            });
+
+            toast.loading("Approval submitted. Waiting for confirmation...", {
+              id: approveToastId,
+            });
+
+            await waitForTransactionReceipt(config, { hash: transactionHash });
+
+            // Refetch updated allowance
+            const { data } = await refetch();
+            allowance = (data?.[0]?.result as bigint | undefined) ?? BigInt(0);
+
+            if (allowance < targetRepayAmount) {
+              throw new Error(
+                "Allowance still insufficient after approval confirmed on-chain.",
+              );
+            }
+
+            toast.success("USDG allowance approved!", { id: approveToastId });
+          }
+
+          // 3. Step Two: Execute Closure
+          setStepStatus("closing");
+
+          const closeToastId = toast.loading(
+            `Closing Position #${positionId}...`,
+          );
+
+          const { transactionHash } = await mutateAsync({
+            address: creditLineAddress,
+            abi: credditCreditLineAbi,
+            functionName: "closePosition",
+            args: [parsedPositionId],
+          });
+
+          toast.loading(
+            "Position closure submitted. Waiting for block confirmation...",
+            {
+              id: closeToastId,
+            },
+          );
+
+          const receipt = await waitForTransactionReceipt(config, {
+            hash: transactionHash,
+          });
+
+          toast.success(`Position #${positionId} successfully closed!`, {
+            id: closeToastId,
+          });
+
+          await queryClient.invalidateQueries({
+            type: "active",
+          });
+
+          return receipt;
+        } catch (err) {
+          const formattedError =
+            err instanceof Error ? err : new Error(String(err));
+          setError(formattedError);
+
+          // Toast: Global error notification
+          toast.error(formattedError.message || "Failed to close position.");
+          throw formattedError;
+        } finally {
+          setIsProcessing(false);
+          setStepStatus("idle");
+        }
+      },
+      [
+        usdgTokenAddress,
+        mutateAsync,
+        cleanPrice,
+        parseAmount,
+        decimals,
+        allowance,
+        refetch,
+        isLoading,
+        refetchDebt,
+      ],
+    );
+
+    return {
+      closePosition,
+      isProcessing,
+      stepStatus,
+      error,
+    };
+  };
+
   return {
     useOpenPosition,
     useDeposit,
@@ -614,5 +756,6 @@ export const useCredditLine = () => {
     useCurrentPositionDebt,
     useWithdraw,
     useLiquidate,
+    useClosePosition,
   };
 };

@@ -43,5 +43,7 @@
   "CredditProtocol#CreditLineProxy": "0x72c32C7Afe69A61DAEaeE8B50cF9e2DCa29f25dc",
   "CredditProtocol#CreditLine": "0x72c32C7Afe69A61DAEaeE8B50cF9e2DCa29f25dc",
   "CredditProtocol#CredditLensProxy": "0x3cc56a64029D84FC8f7F28ac9Bc4A8D4f23ca7F3",
-  "CredditProtocol#CredditLens": "0x3cc56a64029D84FC8f7F28ac9Bc4A8D4f23ca7F3"
+  "CredditProtocol#CredditLens": "0x3cc56a64029D84FC8f7F28ac9Bc4A8D4f23ca7F3",
+  "CredditLineUpgradeV2#CreditLineProxyForUpgradeV2": "0x72c32C7Afe69A61DAEaeE8B50cF9e2DCa29f25dc",
+  "CredditLineUpgradeV2#NewCreditLineImplV2": "0xdba9b87B836F49D95b11493658b41ED4A0b77286"
 }

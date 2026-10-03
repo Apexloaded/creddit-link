@@ -800,6 +800,19 @@ export const credditCreditLineAbi = [
         name: "positionId",
         type: "uint256",
       },
+    ],
+    name: "closePosition",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "positionId",
+        type: "uint256",
+      },
       {
         internalType: "address",
         name: "asset",

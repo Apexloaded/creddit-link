@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { AlertTriangleIcon, CheckIcon } from "lucide-react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { Address } from "viem";
@@ -26,8 +27,22 @@ export default function WithdrawCollateralForm({
   positions = [],
   onCloseModal,
 }: Props) {
+  const searchParams = useSearchParams();
+  const positionQueryParam = searchParams.get("position");
+
+  // Determine initial position ID prioritizing search param if valid
+  const initialPositionId = (() => {
+    if (positionQueryParam) {
+      const parsed = Number(positionQueryParam);
+      if (!isNaN(parsed) && positions.some((p) => p.id === parsed)) {
+        return parsed;
+      }
+    }
+    return positions.length > 0 ? positions[0].id : null;
+  })();
+
   const [selectedPositionId, setSelectedPositionId] = useState<number | null>(
-    positions.length > 0 ? positions[0].id : null,
+    initialPositionId,
   );
   const { useWithdraw } = useCredditLine();
   const { withdraw, isProcessing, stepStatus } = useWithdraw();
@@ -41,10 +56,21 @@ export default function WithdrawCollateralForm({
   } = useForm<WithdrawCollateralSchemaType>({
     resolver: withdrawCollateralSchemaResolver,
     defaultValues: {
-      positionId: positions.length > 0 ? positions[0].id.toString() : "",
+      positionId: initialPositionId ? initialPositionId.toString() : "",
       withdrawals: [],
     },
   });
+
+  // Keep state and form field updated if position param changes dynamically or positions load late
+  useEffect(() => {
+    if (positionQueryParam) {
+      const paramId = Number(positionQueryParam);
+      if (!isNaN(paramId) && positions.some((p) => p.id === paramId)) {
+        setSelectedPositionId(paramId);
+        setValue("positionId", paramId.toString(), { shouldValidate: true });
+      }
+    }
+  }, [positionQueryParam, positions, setValue]);
 
   const { append, remove, replace } = useFieldArray({
     control,
@@ -82,7 +108,7 @@ export default function WithdrawCollateralForm({
     );
     const balance = Number(col?.value.formatted) || 0;
     const amount = Number(w.amount) || 0;
-    // Position USD value divided by token balance (see note below the code)
+    // Position USD value divided by token balance
     const unitPriceUsd = balance > 0 ? collateralValue / balance : 0;
 
     return {
@@ -143,26 +169,23 @@ export default function WithdrawCollateralForm({
     return `Withdraw ${withdrawals.length} Asset${withdrawals.length > 1 ? "s" : ""}`;
   };
 
-const onSubmit = async (data: WithdrawCollateralSchemaType) => {
-  try {
-    await withdraw({
-      positionId: data.positionId,
-      withdrawals: data.withdrawals.map((w) => {
-        const col = collaterals.find(
-          (c) => c.asset.toLowerCase() === w.asset.toLowerCase(),
-        );
-        return {
-          asset: w.asset as Address,
-          amount: w.amount,
-          decimals: 18, // adjust to your ICollateral field
-        };
-      }),
-    });
-    onCloseModal?.();
-  } catch (error) {
-    console.error("Withdraw workflow failed or rejected:", error);
-  }
-};
+  const onSubmit = async (data: WithdrawCollateralSchemaType) => {
+    try {
+      await withdraw({
+        positionId: data.positionId,
+        withdrawals: data.withdrawals.map((w) => {
+          return {
+            asset: w.asset as Address,
+            amount: w.amount,
+            decimals: 18,
+          };
+        }),
+      });
+      onCloseModal?.();
+    } catch (error) {
+      console.error("Withdraw workflow failed or rejected:", error);
+    }
+  };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col flex-1">

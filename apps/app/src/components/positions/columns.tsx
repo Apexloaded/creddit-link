@@ -44,14 +44,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { Button } from "../ui/button";
 
 const columnHelper = createColumnHelper<DataTableFeatures, IPosition>();
 
 export interface PositionActions {
   onDeposit?: (position: IPosition) => void;
   onRepay?: (position: IPosition) => void;
+  onWithdraw?: (position: IPosition) => void;
   onLiquidate?: (position: IPosition) => void;
+  onClose?: (position: IPosition) => void;
 }
 
 /* ----------------------------- helpers ----------------------------- */
@@ -217,7 +218,7 @@ export function getPositionColumns(actions: PositionActions = {}) {
       ),
       cell: (info) => {
         return (
-          <div className="flex items-center gap-3 pl-5">
+          <div className="flex items-center gap-3 pl-5 w-40">
             <span className="font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">
               <span className="text-slate-400">#</span>
               {info.getValue()}
@@ -225,12 +226,22 @@ export function getPositionColumns(actions: PositionActions = {}) {
             <Tooltip>
               <TooltipTrigger>
                 {info.row.original.isLiquidatable ? (
-                  <span className="inline-flex items-center gap-1.5 animate-pulse rounded-full bg-red-50 p-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-200 dark:bg-red-500/10 dark:text-red-400 dark:ring-red-500/30">
+                  <span className="inline-flex justify-center items-center gap-1.5 rounded-full bg-destructive/10 size-4 text-xs font-semibold text-destructive ring-1 ring-inset ring-destructive/40">
                     <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+                      <span className="absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
                     </span>
                   </span>
+                ) : info.row.original.isClosed ? (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex justify-center items-center gap-1.5 rounded-full bg-destructive/10 size-4 text-xs font-semibold text-destructive ring-1 ring-inset ring-destructive/40">
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
+                      </span>
+                    </span>
+                    <p className="flex-1">Closed</p>
+                  </div>
                 ) : (
                   <span className="inline-flex items-center animate-pulse gap-1.5 rounded-full bg-emerald-50 p-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-500/30">
                     <span className="h-2 w-2 rounded-full bg-emerald-500" />
@@ -339,7 +350,17 @@ export function getPositionColumns(actions: PositionActions = {}) {
       ),
       cell: (info) => {
         const isInfinite = info.row.original.isInfiniteHealth;
+        const isClosed = info.row.original.isClosed;
 
+        if (isClosed) {
+          return (
+            <div className="flex justify-center">
+              <span className="inline-flex items-center rounded-full px-2.5 py-1 text-sm font-bold">
+                --
+              </span>
+            </div>
+          );
+        }
         if (isInfinite) {
           return (
             <div className="flex justify-center">
@@ -400,19 +421,10 @@ export function getPositionColumns(actions: PositionActions = {}) {
 
             cell: ({ row }) => {
               const position = row.original;
+              const isInfinite = row.original.isInfiniteHealth;
 
               return (
-                <div
-                  className={[
-                    "flex items-center justify-end gap-1 pr-5",
-                    // hidden by default; interactive controls can't be clicked while invisible
-                    "pointer-events-none opacity-0 transition-opacity duration-150",
-                    // visible while the row is hovered
-                    "[tr:hover_&]:pointer-events-auto [tr:hover_&]:opacity-100 [tr:f",
-                    // keyboard users: reveal when anything in the row has focus
-                    "[tr:focus-within_&]:pointer-events-auto [tr:focus-within_&]:opacity-100",
-                  ].join(" ")}
-                >
+                <div className={"flex items-center justify-end gap-1"}>
                   {actions.onDeposit && (
                     <ColumnActionButton
                       label="Add fund"
@@ -443,27 +455,42 @@ export function getPositionColumns(actions: PositionActions = {}) {
                       <DropdownMenuGroup>
                         {actions.onRepay && (
                           <DropdownMenuItem
+                            disabled={isInfinite}
                             onClick={() => actions.onRepay!(position)}
                             className={"focus:bg-secondary"}
                           >
                             <DropletIcon /> Repay credit
                           </DropdownMenuItem>
                         )}
-
-                        <DropdownMenuItem className={"focus:bg-secondary"}>
-                          <SquareMinusIcon /> Withdraw collateral
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className={"focus:bg-secondary"}>
-                          <Zap />
-                          Liquidate position
-                        </DropdownMenuItem>
+                        {actions.onWithdraw && (
+                          <DropdownMenuItem
+                            onClick={() => actions.onWithdraw!(position)}
+                            className={"focus:bg-secondary"}
+                          >
+                            <SquareMinusIcon /> Withdraw collateral
+                          </DropdownMenuItem>
+                        )}
+                        {actions.onLiquidate && position.isLiquidatable && (
+                          <DropdownMenuItem
+                            disabled={isInfinite}
+                            className={"focus:bg-secondary"}
+                          >
+                            <Zap />
+                            Liquidate position
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuGroup>
                       <DropdownMenuSeparator />
                       <DropdownMenuGroup>
-                        <DropdownMenuItem variant="destructive">
-                          <CircleXIcon className="h-4 w-4" />
-                          Close position
-                        </DropdownMenuItem>
+                        {actions.onClose && (
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => actions.onClose!(position)}
+                          >
+                            <CircleXIcon className="h-4 w-4" />
+                            Close position
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuGroup>
                     </DropdownMenuContent>
                   </DropdownMenu>

@@ -35,6 +35,7 @@ export interface DataTableConfig<T> {
   onPageChange?: (newPage: number) => void;
   onPageSizeChange?: (newPageSize: number) => void;
   isServerSide?: boolean;
+  isSticky?: boolean; // Optional prop to enable/disable sticky first column
 }
 
 interface DataTableProps<TData extends RowData> {
@@ -65,6 +66,7 @@ export function DataTable<TData extends RowData>({
     onPageChange,
     onPageSizeChange,
     isServerSide = false,
+    isSticky = false,
   } = config;
 
   const [rowSelection, setRowSelection] = useState({});
@@ -131,7 +133,12 @@ export function DataTable<TData extends RowData>({
           headers={skeletonHeaders}
         />
       ) : (
-        <ViewTable table={table} columns={columns} emptyState={emptyState} />
+        <ViewTable
+          table={table}
+          columns={columns}
+          emptyState={emptyState}
+          isSticky={isSticky}
+        />
       )}
     </div>
   );

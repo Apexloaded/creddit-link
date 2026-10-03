@@ -25,7 +25,10 @@ import {
     ERC1967Proxy
 } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {CredditCreditLine} from "../core/CredditCreditLine.sol";
+import {
+    CredditCreditLine,
+    NotPositionOwner
+} from "../core/CredditCreditLine.sol";
 import {CredditInterestRateModel} from "../core/CredditInterestRateModel.sol";
 import {CredditLendingRouter} from "../core/CredditLendingRouter.sol";
 import {CredditLiquidityPool} from "../core/CredditLiquidityPool.sol";
@@ -361,6 +364,91 @@ contract DebtSyncTest is Test {
             prevStored,
             string.concat(tag, ": stored index did not advance")
         );
+    }
+
+    /* ==================== CLOSE POSITION TESTS ==================== */
+
+    function test_ClosePosition_FullFlow() public {
+        uint256 depositCollateralAmount = 20e18;
+        uint256 borrowUsdgAmount = 500;
+
+        // 1. Open position and deposit collateral for Alice
+        uint256 pid = _open(alice, depositCollateralAmount);
+
+        // 2. Borrow USDG
+        _borrow(alice, pid, borrowUsdgAmount);
+        assertEq(usdg.balanceOf(alice), borrowUsdgAmount * U);
+        assertGt(creditLine.currentPositionDebt(pid), 0);
+
+        // 3. Fast forward time to accrue interest over 60 days
+        vm.warp(block.timestamp + 60 days);
+
+        uint256 debtWithInterestWad = creditLine.currentPositionDebt(pid);
+        uint256 requiredUsdgToRepay = debtWithInterestWad.fromWadUp(
+            usdg.decimals()
+        );
+
+        // Mint necessary USDG to Alice to cover accrued interest
+        usdg.mint(alice, requiredUsdgToRepay);
+
+        uint256 aliceStockBalanceBefore = stockToken.balanceOf(alice);
+
+        // 4. Alice approves USDG & closes position
+        vm.startPrank(alice);
+        usdg.approve(address(creditLine), type(uint256).max);
+        creditLine.closePosition(pid);
+        vm.stopPrank();
+
+        // 5. Assertions
+        assertEq(creditLine.currentPositionDebt(pid), 0, "Debt should be zero");
+        assertEq(creditLine.debtShares(pid), 0, "Debt shares should be zero");
+        assertEq(
+            creditLine.collateralOf(pid, address(stockToken)),
+            0,
+            "Collateral ledger balance should be 0"
+        );
+        assertEq(
+            stockToken.balanceOf(alice) - aliceStockBalanceBefore,
+            depositCollateralAmount,
+            "Alice should have received full collateral back"
+        );
+
+        (address owner, bool isClosed, , , , , , uint64 closedAt) = creditLine
+            .positions(pid);
+
+        assertEq(owner, alice, "Owner matches");
+        assertTrue(isClosed, "Position should be marked as closed");
+        assertGt(closedAt, 0, "Closed timestamp should be recorded");
+    }
+
+    function test_ClosePosition_WithoutDebt() public {
+        uint256 depositCollateralAmount = 10e18;
+        uint256 pid = _open(alice, depositCollateralAmount);
+
+        uint256 aliceStockBalanceBefore = stockToken.balanceOf(alice);
+
+        vm.startPrank(alice);
+        creditLine.closePosition(pid);
+        vm.stopPrank();
+
+        assertEq(creditLine.collateralOf(pid, address(stockToken)), 0);
+        assertEq(
+            stockToken.balanceOf(alice) - aliceStockBalanceBefore,
+            depositCollateralAmount
+        );
+
+        (, bool isClosed, , , , , , ) = creditLine.positions(pid);
+        assertTrue(isClosed, "Position without debt should be closed");
+    }
+
+    function test_ClosePosition_RevertsIfNotOwner() public {
+        uint256 pid = _open(alice, 10e18);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(NotPositionOwner.selector, pid, bob)
+        );
+        vm.prank(bob);
+        creditLine.closePosition(pid);
     }
 
     /* ==================== POSITIONS & DEPOSITS ==================== */

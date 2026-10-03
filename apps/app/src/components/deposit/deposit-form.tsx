@@ -169,13 +169,13 @@ export function DepositForm({ onClose }: DepositFormProps) {
         </div>
       )}
 
-      <div className="flex flex-col gap-2 bg-accent rounded-3xl px-6 py-4 mt-1">
+      <div className="flex flex-col gap-2 bg-secondary rounded-3xl px-6 py-4 mt-1">
         <p className="text-sm font-medium">Deposit</p>
         <div className="flex justify-between items-center gap-2">
           <CurrencyInputField
             control={control}
             name="amount"
-            className="md:text-5xl flex-1 text-primary h-14 p-0 rounded-none shadow-none focus-visible:ring-0 border-0 caret-primary"
+            className="md:text-5xl bg-transparent flex-1 text-primary h-14 p-0 rounded-none shadow-none focus-visible:ring-0 border-0 caret-primary"
           />
 
           <DropdownMenu>
@@ -249,7 +249,7 @@ export function DepositForm({ onClose }: DepositFormProps) {
         </div>
       </div>
 
-      <div className="flex flex-col py-3 gap-2 bg-accent rounded-3xl px-6 mt-3 text-sm">
+      <div className="flex flex-col py-3 gap-2 bg-secondary rounded-3xl px-6 mt-3 text-sm">
         <div className="flex items-center justify-between py-2">
           <div className="flex items-center gap-2">
             <p>Use as collateral</p>

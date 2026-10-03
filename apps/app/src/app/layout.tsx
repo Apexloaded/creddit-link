@@ -7,6 +7,7 @@ import { CredditProvider } from "@/context/creddit.context";
 import ReactQueryProvider from "@/providers/react-query.provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WagmiProvider } from "@/providers/wagmi.provider";
+import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -44,7 +45,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <WagmiProvider>
             <ReactQueryProvider>
               <TooltipProvider>
-                <CredditProvider>{children}</CredditProvider>
+                <CredditProvider>
+                  {children}
+                  <Toaster richColors position={"bottom-center"} closeButton />
+                </CredditProvider>
               </TooltipProvider>
             </ReactQueryProvider>
           </WagmiProvider>
