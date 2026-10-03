@@ -6,7 +6,6 @@ import { Container } from "../ui/container";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { routes } from "@/lib/route";
-import { hardhat } from "wagmi/chains";
 import { envConfig } from "@/config/env.config";
 
 export function ListConnectors() {
@@ -31,7 +30,17 @@ export function ListConnectors() {
             name: connector.name,
             icon: connector.icon,
             onClick: () =>
-              connect({ connector, chainId: envConfig.app.defaultChain }),
+              connect(
+                {
+                  connector,
+                  chainId: envConfig.app.defaultChain,
+                },
+                {
+                  onSuccess: () => {
+                    router.push(routes.app.dashboard)
+                  },
+                },
+              ),
           }}
         />
       ))}

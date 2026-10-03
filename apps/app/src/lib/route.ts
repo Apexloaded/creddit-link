@@ -15,6 +15,9 @@ export const routes = {
     positions: "/positions",
     positionDetails: (positionId: string) => `/positions/${positionId}`,
     settings: "/settings",
+    admin: {
+      mockFeed: "/admin/oracle"
+    }
   },
 } as const;
 
