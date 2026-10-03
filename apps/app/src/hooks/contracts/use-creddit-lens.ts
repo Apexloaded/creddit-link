@@ -60,7 +60,12 @@ export function useCredditLens() {
       query: {
         enabled: Boolean(address),
         select: (data): IPosition[] =>
-          data.map((pos) => parsePositionSummary(pos)),
+          data
+            .map((pos) => parsePositionSummary(pos))
+            .sort(
+              (a, b) =>
+                new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime(),
+            ),
       },
     });
   };
@@ -77,7 +82,12 @@ export function useCredditLens() {
       query: {
         enabled: count > BigInt(0),
         select: (data): IPosition[] =>
-          data.map((pos) => parsePositionSummary(pos)),
+          data
+            .map((pos) => parsePositionSummary(pos))
+            .sort(
+              (a, b) =>
+                new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime(),
+            ),
       },
     });
   };
@@ -94,7 +104,10 @@ export function useCredditLens() {
       query: {
         enabled: count > BigInt(0),
         select: (data): IPosition[] =>
-          data.map((pos) => parsePositionSummary(pos)),
+          data.map((pos) => parsePositionSummary(pos)).sort(
+            (a, b) =>
+              new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime(),
+          ),
       },
     });
   };
@@ -141,7 +154,7 @@ function parsePositionSummary(pos: RawPositionSummary): IPosition {
       TOKEN_DECIMALS.USDG,
     ),
     liquidatedAt: fromBlockDate(pos.liquidatedAt),
-    openedAt: fromBlockDate(pos.openedAt),
+    openedAt: fromBlockDate(pos.openedAt)!,
     closedAt: fromBlockDate(pos.closedAt),
   };
 }

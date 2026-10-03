@@ -23,7 +23,7 @@ export interface IPosition {
   isLiquidatable: boolean;
   collaterals: ICollateral[];
   liquidatedAt: Date | null;
-  openedAt: Date | null;
+  openedAt: Date;
   closedAt: Date | null;
 }
 
