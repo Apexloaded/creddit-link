@@ -17,10 +17,10 @@ import { Tokens } from "@/config";
 
 export default function MockOracleAdmin() {
   const [selectedToken, setSelectedToken] = useState<Tokens>(Tokens.USDG);
-  const { getToken } = useCredditAddresses();
+  const { getPriceFeed } = useCredditAddresses();
 
   // Get the feed/token address based on the selected enum value
-  const feedAddress = getToken(selectedToken);
+  const feedAddress = getPriceFeed(selectedToken);
 
   const [inputPrice, setInputPrice] = useState("150.00");
   const [stalenessHours, setStalenessHours] = useState("72");
@@ -35,6 +35,8 @@ export default function MockOracleAdmin() {
     refreshTimestampToNow,
     triggerIncompleteRound,
   } = useMockAggregator(feedAddress);
+
+  console.log(state);
 
   const copyAddress = () => {
     if (!feedAddress) return;
@@ -101,14 +103,12 @@ export default function MockOracleAdmin() {
         <div className="flex items-center gap-2">
           <span className="relative flex h-2.5 w-2.5">
             <span
-              className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                isStale ? "bg-warning" : "bg-success"
-              }`}
+              className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isStale ? "bg-warning" : "bg-success"
+                }`}
             ></span>
             <span
-              className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                isStale ? "bg-warning" : "bg-success"
-              }`}
+              className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isStale ? "bg-warning" : "bg-success"
+                }`}
             ></span>
           </span>
           <span className="text-xs font-medium text-foreground">

@@ -54,6 +54,8 @@ export function useMockAggregator(address?: Address) {
     query: { enabled: !!address },
   });
 
+  console.log(roundData);
+
   // Refetch data automatically when a write transaction is confirmed
   useEffect(() => {
     if (isConfirmed) {
