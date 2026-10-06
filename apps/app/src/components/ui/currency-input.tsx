@@ -8,8 +8,12 @@ import {
   type FieldValues,
 } from "react-hook-form";
 import { cn } from "@/lib/utils";
-import { Fragment } from "react";
-import { Input } from "./input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "./input-group";
 
 interface CurrencyInputFieldProps<T extends FieldValues> {
   name: FieldPath<T>;
@@ -18,6 +22,8 @@ interface CurrencyInputFieldProps<T extends FieldValues> {
   className?: string;
   maxDecimals?: number;
   disabled?: boolean;
+  addon?: string | React.ReactNode;
+  addonClassName?: string;
 }
 
 function truncateForMaxDecimals(clean: string, maxDecimals: number): string {
@@ -95,6 +101,8 @@ export function CurrencyInputField<T extends FieldValues>({
   className,
   maxDecimals,
   disabled,
+  addon,
+  addonClassName,
 }: CurrencyInputFieldProps<T>) {
   const inputRef = React.useRef<HTMLInputElement>(null);
 
@@ -136,7 +144,61 @@ export function CurrencyInputField<T extends FieldValues>({
 
         return (
           <div className="flex flex-col flex-1 items-start relative">
-            <Input
+            <InputGroup
+              className={cn(
+                "has-[[data-slot=input-group-control]:focus-visible]:ring-0",
+                className,
+              )}
+            >
+              {addon && (
+                <InputGroupAddon className="p-0">
+                  {typeof addon == "string" ? (
+                    <InputGroupText className={addonClassName}>
+                      {addon}
+                    </InputGroupText>
+                  ) : (
+                    addon
+                  )}
+                </InputGroupAddon>
+              )}
+              <InputGroupInput
+                {...field}
+                ref={(el) => {
+                  inputRef.current = el;
+                  if (typeof field.ref === "function") field.ref(el);
+                }}
+                value={displayValue}
+                onChange={handleChange}
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder={placeholder}
+                disabled={disabled}
+                className={className}
+                onKeyDown={(e) => {
+                  // Block a second decimal point and any non-numeric key
+                  // that isn't a control/navigation key.
+                  const allowedControlKeys = [
+                    "Backspace",
+                    "Delete",
+                    "ArrowLeft",
+                    "ArrowRight",
+                    "Tab",
+                    "Home",
+                    "End",
+                  ];
+                  if (allowedControlKeys.includes(e.key)) return;
+                  if (e.key === "." && field.value?.toString().includes(".")) {
+                    e.preventDefault();
+                    return;
+                  }
+                  if (!/^[0-9.]$/.test(e.key) && !e.metaKey && !e.ctrlKey) {
+                    e.preventDefault();
+                  }
+                }}
+              />
+            </InputGroup>
+            {/* <Input
               {...field}
               ref={(el) => {
                 inputRef.current = el;
@@ -171,7 +233,7 @@ export function CurrencyInputField<T extends FieldValues>({
                   e.preventDefault();
                 }
               }}
-            />
+            /> */}
             {fieldState.error && (
               <span className="text-xs text-red-500 absolute -bottom-4">
                 {fieldState.error.message}

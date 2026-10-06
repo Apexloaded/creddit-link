@@ -1,26 +1,12 @@
 "use client";
 
-import { Fragment, memo, useCallback, useState } from "react";
-import { baseTableConfig, DataTable } from "../table/data-table";
+import { Fragment, memo, useState } from "react";
+import { baseTableConfig, DataTable } from "../../table/data-table";
 import { getLiquidatableColumns } from "./columns";
 import { useMemo } from "react";
 import { IPosition } from "@/interfaces/creddit-lens.interface";
 import { useRouter } from "next/navigation";
-import { routes } from "@/lib/route";
-import EmptyState from "../ui/empty-state";
-import { Button } from "../ui/button";
-import { useAppDispatch, useCredditLine } from "@/hooks";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../ui/alert-dialog";
-import { Loader2 } from "lucide-react";
+import EmptyState from "../../ui/empty-state";
 import LiquidateModal from "./liquidate-modal";
 
 type PositionTableProps = {

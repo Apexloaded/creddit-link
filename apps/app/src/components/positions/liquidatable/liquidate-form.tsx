@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Address } from "viem";
 import { ZapIcon, WalletIcon, AlertTriangleIcon, CheckIcon } from "lucide-react";
-import { Button } from "../ui/button";
-import { CurrencyInputField } from "../ui/currency-input";
+import { Button } from "../../ui/button";
+import { CurrencyInputField } from "../../ui/currency-input";
 import { cleanPrice, cn, formatCurrency } from "@/lib/utils";
 import { IPosition } from "@/interfaces/creddit-lens.interface";
 import { useCreddit } from "@/context/creddit.context";
@@ -236,7 +236,7 @@ export default function LiquidateForm({
                     control={control}
                     name="debtToCover"
                     placeholder={formatCurrency("0.00", false)}
-                    className="h-16 -ml-2 rounded-none focus-visible:ring-0 border-0 shadow-none bg-transparent px-0 font-heading text-5xl font-normal tracking-tight md:text-6xl"
+                    className="h-16 -ml-1 rounded-none focus-visible:ring-0 border-0 shadow-none bg-transparent px-0 font-heading text-5xl font-normal tracking-tight md:text-6xl"
                   />
                 </div>
                 <p className="mt-3 max-w-sm text-sm leading-6 text-foreground/50">

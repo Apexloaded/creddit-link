@@ -1,34 +1,17 @@
 "use client";
 
-import { useState } from "react";
 import { IPosition } from "@/interfaces/creddit-lens.interface";
 import { createColumnHelper } from "@tanstack/react-table";
 import {
-  Check,
   CircleXIcon,
-  Copy,
   DropletIcon,
   EllipsisIcon,
-  HandCoinsIcon,
-  LayersArrowUpIcon,
   PlusCircleIcon,
   SquareMinusIcon,
   Zap,
 } from "lucide-react";
 import { DataTableFeatures } from "../table/data-table-features";
-import {
-  addressGradient,
-  cn,
-  formatCurrency,
-  toFormattedAmount,
-  truncate,
-} from "@/lib/utils";
-import { Stock, TOKEN_DECIMALS, toRhLogo } from "@/config";
-import {
-  HoverCard,
-  HoverCardTrigger,
-  HoverCardContent,
-} from "../ui/hover-card";
+import { formatCurrency } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import {
   ColumnActionButton,
@@ -41,11 +24,11 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import useClipboard from "@/hooks/use-clipboard";
+import { AddressCell } from "../ui/address-cell";
+import { CollateralHoverCard } from "./collateral-hover-card";
 
 const columnHelper = createColumnHelper<DataTableFeatures, IPosition>();
 
@@ -56,149 +39,6 @@ export interface PositionActions {
   onLiquidate?: (position: IPosition) => void;
   onClose?: (position: IPosition) => void;
 }
-
-/* ----------------------------- helpers ----------------------------- */
-
-function TokenLogo({
-  symbol,
-  size = 20,
-  className = "",
-}: {
-  symbol: Stock;
-  size?: number;
-  className?: string;
-}) {
-  console.log("TOKEN SYMBOL :: :: ", symbol);
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={toRhLogo(symbol)}
-      alt={symbol}
-      title={symbol}
-      width={size}
-      height={size}
-      className={`rounded-full bg-white object-cover ring-2 ring-white dark:ring-slate-900 ${className}`}
-      onError={(e) => {
-        e.currentTarget.style.visibility = "hidden";
-      }}
-    />
-  );
-}
-
-function AddressCell({ addr }: { addr: string }) {
-  const { copy, isCopied } = useClipboard();
-
-  return (
-    <div className="group flex items-center gap-2">
-      <span
-        className="h-6 w-6 shrink-0 rounded-full"
-        style={{ background: addressGradient(addr) }}
-      />
-      <span
-        className="font-mono text-xs text-slate-700 dark:text-slate-300"
-        title={addr}
-      >
-        {truncate(addr)}
-      </span>
-      <button
-        onClick={() => copy(addr)}
-        aria-label="Copy address"
-        className="rounded p-1 text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100 dark:hover:bg-slate-800"
-      >
-        {isCopied ? (
-          <Check className="h-3 w-3 text-green-600" />
-        ) : (
-          <Copy className="h-3 w-3" />
-        )}
-      </button>
-    </div>
-  );
-}
-
-const MAX_ICONS = 3;
-
-function CollateralHoverCard({ position }: { position: IPosition }) {
-  const { collaterals, collateralUsd } = position;
-  const visible = collaterals.slice(0, MAX_ICONS);
-  const extra = collaterals.length - visible.length;
-
-  return (
-    <HoverCard>
-      <HoverCardTrigger delay={100} closeDelay={80}>
-        <button
-          type="button"
-          onClick={(e) => e.stopPropagation()}
-          aria-label={`View ${collaterals.length} collateral assets`}
-          className="flex items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-        >
-          <div className="flex -space-x-2">
-            {visible.map((cl, i) => (
-              <TokenLogo
-                key={`${cl.symbol}-${i}`}
-                symbol={cl.symbol}
-                size={24}
-              />
-            ))}
-          </div>
-          {extra > 0 && (
-            <span className="ml-1.5 text-xs font-medium tabular-nums text-slate-500 dark:text-slate-400">
-              +{extra}
-            </span>
-          )}
-        </button>
-      </HoverCardTrigger>
-
-      <HoverCardContent align="start" sideOffset={8} className="w-72 p-0">
-        {/* header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
-          <div>
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Collateral
-            </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Position #{position.id}
-            </p>
-          </div>
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            {collaterals.length} {collaterals.length === 1 ? "asset" : "assets"}
-          </span>
-        </div>
-
-        {/* asset list */}
-        <ul className="max-h-64 divide-y divide-slate-100 overflow-y-auto dark:divide-slate-800">
-          {collaterals.map((c, i) => (
-            <li
-              key={`${c.symbol}-${i}`}
-              className="flex items-center justify-between gap-3 px-4 py-2.5"
-            >
-              <div className="flex items-center gap-2.5">
-                <TokenLogo symbol={c.symbol} size={28} className="ring-0" />
-                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {c.symbol}
-                </span>
-              </div>
-              <span className="text-sm font-medium tabular-nums text-slate-700 dark:text-slate-300">
-                {formatCurrency(c.value.formatted, false)}
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        {/* footer total */}
-        <div className="flex items-center justify-between rounded-b-md border-t border-slate-200 bg-slate-50 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/60">
-          <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Total value
-          </span>
-          <span className="text-sm font-semibold tabular-nums text-slate-900 dark:text-slate-100">
-            {formatCurrency(collateralUsd.formatted)}
-          </span>
-        </div>
-      </HoverCardContent>
-    </HoverCard>
-  );
-}
-
-/* ----------------------------- columns ----------------------------- */
 
 export function getPositionColumns(actions: PositionActions = {}) {
   const hasActions = Boolean(
@@ -214,8 +54,8 @@ export function getPositionColumns(actions: PositionActions = {}) {
         const isClosed = info.row.original.isClosed;
         return (
           <div className="flex items-center gap-3 w-40">
-            <span className="font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">
-              <span className="text-slate-400">#</span>
+            <span className="font-mono text-sm font-semibold text-foreground">
+              <span className="text-foreground/30">#</span>
               {info.getValue()}
             </span>
             <Tooltip>
@@ -238,8 +78,8 @@ export function getPositionColumns(actions: PositionActions = {}) {
                     <p className="flex-1">Closed</p>
                   </div>
                 ) : (
-                  <span className="inline-flex items-center animate-pulse gap-1.5 rounded-full bg-emerald-50 p-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-500/30">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="inline-flex items-center animate-pulse gap-1.5 rounded-full bg-success/10 p-1 text-xs font-semibold text-success ring-1 ring-inset ring-success/30">
+                    <span className="h-2 w-2 rounded-full bg-success" />
                   </span>
                 )}
               </TooltipTrigger>
@@ -260,7 +100,7 @@ export function getPositionColumns(actions: PositionActions = {}) {
 
     columnHelper.accessor("owner", {
       header: "Owner",
-      cell: (info) => <AddressCell addr={info.getValue()} />,
+      cell: (info) => <AddressCell address={info.getValue()} />,
     }),
 
     columnHelper.accessor("openedAt", {

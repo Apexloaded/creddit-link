@@ -149,7 +149,7 @@ export default function EarnForm({ onCloseModal }: Props) {
                   <CurrencyInputField
                     control={control}
                     name="amount"
-                    className="h-16 -ml-2 rounded-none focus-visible:ring-0 border-0 shadow-none bg-transparent px-0 font-heading text-5xl font-normal tracking-tight md:text-6xl"
+                    className="h-16 -ml-1 rounded-none focus-visible:ring-0 border-0 shadow-none bg-transparent px-0 font-heading text-5xl font-normal tracking-tight md:text-6xl"
                   />
                 </div>
 

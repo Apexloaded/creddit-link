@@ -1,3 +1,4 @@
+import { Stock } from "@/config";
 import { RawAssetConfig } from "@/contracts/interfaces/asset-registry";
 
 export interface FormattedAmount {
@@ -5,7 +6,7 @@ export interface FormattedAmount {
   formatted: string;
 }
 export interface IAsset extends Omit<RawAssetConfig, "maxExposure"> {
-  symbol: string;
+  symbol: Stock;
   balance: bigint;
   balanceFormatted: string;
   maxExposure: string;

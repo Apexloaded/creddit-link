@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useConnection, useDisconnect } from "wagmi";
 import { Button } from "../ui/button";
+import { AddressCell } from "../ui/address-cell";
 
 export function NavUser() {
   const { address } = useConnection();
@@ -55,8 +56,10 @@ export function NavUser() {
             Wallet
           </DropdownMenuLabel>
           <DropdownMenuLabel className="p-0 font-normal">
-            <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-              <Avatar>
+            {address && (
+              <div className="flex items-center gap-2 px-3 py-1.5 text-left text-sm">
+                <AddressCell address={address} />
+                {/* <Avatar>
                 <AvatarFallback
                   style={{ background: addressGradient(address ?? "0x0") }}
                 ></AvatarFallback>
@@ -65,8 +68,9 @@ export function NavUser() {
                 <span className="truncate font-medium text-foreground">
                   {truncate(address)}
                 </span>
+              </div> */}
               </div>
-            </div>
+            )}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

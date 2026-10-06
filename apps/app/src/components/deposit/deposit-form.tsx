@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import {
@@ -27,6 +27,7 @@ import {
 } from "@/schemas/deposit.schema";
 import { cn, formatCurrency } from "@/lib/utils";
 import { CurrencyInputField } from "../ui/currency-input";
+import { TokenLogo } from "../ui/token-logo";
 
 interface DepositFormProps {
   onClose: () => void;
@@ -42,6 +43,9 @@ export function DepositForm({ onClose }: DepositFormProps) {
   const { deposit, isProcessing, stepStatus } = useDeposit(
     selectedAsset?.token,
   );
+
+  // State to track whether user is typing in USD or Token unit
+  const [isUsdMode, setIsUsdMode] = useState(false);
 
   const {
     handleSubmit,
@@ -78,9 +82,11 @@ export function DepositForm({ onClose }: DepositFormProps) {
 
   const amount = watch("amount");
 
+  // Price conversion calculations
+  const parsedPrice = parseFloat(selectedAsset?.usdPrice ?? "0");
+
   const calculatedUsdValue = useMemo(() => {
     const parsedAmount = parseFloat(amount || "0");
-    const parsedPrice = parseFloat(selectedAsset?.usdPrice ?? "0");
     if (isNaN(parsedAmount) || parsedAmount <= 0 || isNaN(parsedPrice)) {
       return "0.00";
     }
@@ -88,15 +94,41 @@ export function DepositForm({ onClose }: DepositFormProps) {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
-  }, [amount, selectedAsset?.usdPrice]);
+  }, [amount, parsedPrice]);
+
+  const calculatedTokenValue = useMemo(() => {
+    const parsedAmount = parseFloat(amount || "0");
+    if (
+      isNaN(parsedAmount) ||
+      parsedAmount <= 0 ||
+      isNaN(parsedPrice) ||
+      parsedPrice === 0
+    ) {
+      return "0.00";
+    }
+    return (parsedAmount / parsedPrice).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6,
+    });
+  }, [amount, parsedPrice]);
+
+  // Actual token amount to validate against token balance
+  const effectiveTokenAmount = useMemo(() => {
+    const parsedAmount = parseFloat(amount || "0");
+    if (isNaN(parsedAmount)) return 0;
+
+    if (isUsdMode) {
+      return parsedPrice > 0 ? parsedAmount / parsedPrice : 0;
+    }
+    return parsedAmount;
+  }, [amount, isUsdMode, parsedPrice]);
 
   useEffect(() => {
-    const parsedAmount = parseFloat(amount || "0");
     const parsedBalance = parseFloat(selectedAsset?.balanceFormatted ?? "0");
 
     if (!amount) return;
 
-    if (parsedAmount > parsedBalance) {
+    if (effectiveTokenAmount > parsedBalance) {
       setError("amount", {
         type: "balanceExceeded",
         message: "Amount exceeds available balance",
@@ -106,6 +138,7 @@ export function DepositForm({ onClose }: DepositFormProps) {
     }
   }, [
     amount,
+    effectiveTokenAmount,
     selectedAsset?.balanceFormatted,
     setError,
     clearErrors,
@@ -114,8 +147,38 @@ export function DepositForm({ onClose }: DepositFormProps) {
 
   const isBalanceExceeded = errors.amount?.type === "within-balance";
 
+  const toggleUsdMode = () => {
+    const parsedAmount = parseFloat(amount || "0");
+
+    if (parsedAmount > 0 && parsedPrice > 0) {
+      if (isUsdMode) {
+        // Converting USD input to Token input
+        const convertedToken = (parsedAmount / parsedPrice).toFixed(6);
+        setValue("amount", String(parseFloat(convertedToken)), {
+          shouldValidate: true,
+        });
+      } else {
+        // Converting Token input to USD input
+        const convertedUsd = (parsedAmount * parsedPrice).toFixed(2);
+        setValue("amount", String(parseFloat(convertedUsd)), {
+          shouldValidate: true,
+        });
+      }
+    }
+    setIsUsdMode((prev) => !prev);
+  };
+
   const handleSetMax = () => {
-    if (selectedAsset?.balanceFormatted) {
+    if (!selectedAsset?.balanceFormatted) return;
+
+    const balanceNum = parseFloat(selectedAsset.balanceFormatted);
+
+    if (isUsdMode) {
+      const maxUsd = (balanceNum * parsedPrice).toFixed(2);
+      setValue("amount", String(parseFloat(maxUsd)), {
+        shouldValidate: true,
+      });
+    } else {
       setValue("amount", String(selectedAsset.balanceFormatted), {
         shouldValidate: true,
       });
@@ -124,9 +187,14 @@ export function DepositForm({ onClose }: DepositFormProps) {
 
   const onSubmit = async (data: DepositSchemaType) => {
     try {
+      // Ensure the submitted amount is converted back to token units if in USD mode
+      const depositAmount = isUsdMode
+        ? String(effectiveTokenAmount)
+        : data.amount;
+
       const receipt = await deposit({
         positionId: data.positionId,
-        amount: data.amount,
+        amount: depositAmount,
       });
       console.log(receipt);
       onClose();
@@ -176,12 +244,17 @@ export function DepositForm({ onClose }: DepositFormProps) {
           <CurrencyInputField
             control={control}
             name="amount"
+            addon={isUsdMode ? "$" : undefined}
+            addonClassName={isUsdMode ? "text-5xl" : undefined}
             className="md:text-5xl bg-transparent flex-1 text-primary h-14 p-0 rounded-none shadow-none focus-visible:ring-0 border-0 caret-primary"
           />
 
           <DropdownMenu>
             <DropdownMenuTrigger>
               <div className="flex gap-1 items-center transition-colors duration-200 hover:bg-background/80 cursor-pointer bg-background rounded-full px-3 py-2 select-none">
+                {selectedAsset && (
+                  <TokenLogo symbol={selectedAsset?.symbol} size={24} />
+                )}
                 <p className="text-md font-medium">
                   {selectedAsset?.symbol ?? "Select Asset"}
                 </p>
@@ -189,29 +262,41 @@ export function DepositForm({ onClose }: DepositFormProps) {
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 bg-background">
-              {assets.map((asset) => (
-                <DropdownMenuItem
-                  key={asset.token}
-                  onClick={() => setSelectedAsset(asset)}
-                  className={cn(
-                    "flex justify-between focus:bg-secondary cursor-pointer",
-                    selectedAsset?.token === asset.token && "bg-secondary",
-                  )}
-                >
-                  <span className="font-medium">{asset.symbol}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatCurrency(asset.balanceFormatted, false)}
-                  </span>
-                </DropdownMenuItem>
-              ))}
+              {assets
+                .filter((a) => a.balance > 0)
+                .map((asset, i) => (
+                  <DropdownMenuItem
+                    key={asset.token}
+                    onClick={() => setSelectedAsset(asset)}
+                    className={cn(
+                      "flex justify-between focus:bg-secondary cursor-pointer",
+                      selectedAsset?.token === asset.token && "bg-secondary",
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <TokenLogo symbol={asset.symbol} size={24} />
+                      <span className="font-medium">{asset.symbol}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {formatCurrency(asset.balanceFormatted, false)}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
         <div className="flex items-center justify-between text-sm text-muted-foreground mt-1">
-          <div className="flex items-center gap-1">
+          <div
+            onClick={toggleUsdMode}
+            className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors select-none"
+          >
             <ArrowUpDownIcon size={17} />
-            <p>${calculatedUsdValue}</p>
+            <p>
+              {isUsdMode
+                ? `${calculatedTokenValue} ${selectedAsset?.symbol ?? ""}`
+                : `$${calculatedUsdValue}`}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">

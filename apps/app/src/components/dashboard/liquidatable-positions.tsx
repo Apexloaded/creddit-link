@@ -1,7 +1,7 @@
 "use client";
 
 import { useCredditLens } from "@/hooks";
-import { LiquidatableTable } from "../liquidatable/liquidatable-table";
+import { LiquidatableTable } from "../positions/liquidatable/liquidatable-table";
 
 function LiquidatablePositions() {
   const { useLiquidatablePositions } = useCredditLens();
