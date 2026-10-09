@@ -26,9 +26,10 @@ import {
   MapIcon,
   LayoutDashboardIcon,
   RotateCwSquareIcon,
+  BookIcon,
 } from "lucide-react";
 import { routes } from "@/lib/route";
-
+import { navItems } from "./nav-items";
 
 const data = {
   navMain: [
@@ -51,9 +52,14 @@ const data = {
   ],
   projects: [
     {
-      name: "Mock Oracle Admin",
+      name: "Mock Oracle",
       url: routes.app.admin.mockFeed,
       icon: <FrameIcon />,
+    },
+    {
+      name: "Mock Registry",
+      url: routes.app.admin.mockRegistry,
+      icon: <BookIcon />,
     },
   ],
 };
@@ -65,8 +71,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <AppLogo />
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavProjects projects={data.projects} />
+        <NavMain groups={navItems} />
       </SidebarContent>
       <SidebarRail />
     </Sidebar>

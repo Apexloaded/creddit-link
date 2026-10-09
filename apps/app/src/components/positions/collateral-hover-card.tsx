@@ -1,3 +1,5 @@
+"use client";
+
 import { formatCurrency } from "@/lib/utils";
 import {
   HoverCard,
@@ -14,7 +16,6 @@ type CollateralHoverCardProps = {
   maxIcon?: number;
 };
 
-// Per-asset accent, shared by the allocation bar and the row dots
 const ACCENTS = [
   "bg-emerald-500",
   "bg-sky-500",
@@ -110,6 +111,7 @@ export function CollateralHoverCard({
           >
             {rows.map((r, i) => (
               <div
+                title={r.symbol}
                 key={`${r.symbol}-${i}`}
                 className={`${r.accent} first:rounded-l-full last:rounded-r-full`}
                 style={{ width: `${r.share}%` }}

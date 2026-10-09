@@ -34,7 +34,7 @@ export function CreditOverview({ portfolio, isLoading }: Props) {
         portfolio?.isStale && (
           <Tooltip>
             <TooltipTrigger>
-              <span className="inline-flex cursor-help text-amber-600">
+              <span className="inline-flex cursor-help text-destructive">
                 <AlertCircle className="h-4 w-4" />
               </span>
             </TooltipTrigger>

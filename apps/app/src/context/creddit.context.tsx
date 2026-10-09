@@ -9,7 +9,7 @@ import {
   useAsset,
   useCredditAddresses,
 } from "@/hooks";
-import { Contracts, CREDDIT_ADDRESSES, Tokens } from "@/config/contract.config";
+import { Contracts, Tokens } from "@/config/contract.config";
 import { useCredditLens } from "@/hooks/contracts/use-creddit-lens";
 import { IPortfolio, IPosition } from "@/interfaces/creddit-lens.interface";
 

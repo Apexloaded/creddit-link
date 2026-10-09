@@ -3,6 +3,8 @@
 import { IPosition } from "@/interfaces/creddit-lens.interface";
 import { createColumnHelper } from "@tanstack/react-table";
 import {
+  BanIcon,
+  CircleSlash2Icon,
   CircleXIcon,
   DropletIcon,
   EllipsisIcon,
@@ -54,10 +56,10 @@ export function getPositionColumns(actions: PositionActions = {}) {
         const isClosed = info.row.original.isClosed;
         return (
           <div className="flex items-center gap-3 w-40">
-            <span className="font-mono text-sm font-semibold text-foreground">
+            {/* <span className="font-mono text-sm font-semibold text-foreground">
               <span className="text-foreground/30">#</span>
               {info.getValue()}
-            </span>
+            </span> */}
             <Tooltip>
               <TooltipTrigger>
                 {isLiquidatable ? (
@@ -69,13 +71,13 @@ export function getPositionColumns(actions: PositionActions = {}) {
                   </span>
                 ) : isClosed ? (
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex justify-center items-center gap-1.5 rounded-full bg-line/10 size-4 text-xs font-semibold text-destructive ring-1 ring-inset ring-line/40">
-                      <span className="relative flex h-2 w-2">
-                        <span className="absolute inline-flex h-full w-full rounded-full bg-line" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-line" />
-                      </span>
-                    </span>
-                    <p className="flex-1">Closed</p>
+                    <BanIcon
+                      size={14}
+                      className="stroke-destructive"
+                    />
+                    <div className="flex-1 flex gap-1 items-center uppercase text-xs bg-line px-2 py-1 rounded-sm">
+                      <p className="font-medium">Closed</p>
+                    </div>
                   </div>
                 ) : (
                   <span className="inline-flex items-center animate-pulse gap-1.5 rounded-full bg-success/10 p-1 text-xs font-semibold text-success ring-1 ring-inset ring-success/30">
@@ -96,6 +98,7 @@ export function getPositionColumns(actions: PositionActions = {}) {
           </div>
         );
       },
+      enableHiding: false,
     }),
 
     columnHelper.accessor("owner", {

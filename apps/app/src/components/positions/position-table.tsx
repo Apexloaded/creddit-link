@@ -1,7 +1,11 @@
 "use client";
 
 import { Fragment, memo, useCallback, useState } from "react";
-import { baseTableConfig, DataTable } from "../table/data-table";
+import {
+  baseTableConfig,
+  DataTable,
+  DataTableConfig,
+} from "../table/data-table";
 import { getPositionColumns } from "./columns";
 import { useMemo } from "react";
 import { IPosition } from "@/interfaces/creddit-lens.interface";
@@ -26,9 +30,15 @@ import { Loader2 } from "lucide-react";
 
 type PositionTableProps = {
   data: IPosition[];
+  enableSearch?: boolean;
+  enableColumnVisibility?: boolean;
 };
 
-function PositionTableComponent({ data }: PositionTableProps) {
+function PositionTableComponent({
+  data,
+  enableColumnVisibility = true,
+  enableSearch = true,
+}: PositionTableProps) {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const [pendingPosition, setPendingPosition] = useState<IPosition | null>(
@@ -89,11 +99,15 @@ function PositionTableComponent({ data }: PositionTableProps) {
   );
 
   const config = useMemo(
-    () => ({
-      ...baseTableConfig,
-      enableRowSelection: false,
-      isSticky: true,
-    }),
+    () =>
+      ({
+        ...baseTableConfig,
+        enableColumnVisibility,
+        enableSearch,
+        searchPlaceholder: "Search positions...",
+        enableRowSelection: false,
+        isSticky: true,
+      }) as DataTableConfig<IPosition>,
     [],
   );
 

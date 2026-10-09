@@ -12,12 +12,15 @@ export const routes = {
     earn: "/earn",
     withdrawCollateral: (positionId?: string) =>
       `/withdraw/collateral${positionId ? `?position=${positionId}` : ""}`,
-    positions: "/positions",
-    positionDetails: (positionId: string) => `/positions/${positionId}`,
+    positions: {
+      index: "/positions",
+      details: (positionId: string) => `/positions/${positionId}`,
+    },
     settings: "/settings",
     admin: {
-      mockFeed: "/admin/oracle"
-    }
+      mockFeed: "/admin/oracle",
+      mockRegistry: "/admin/registry",
+    },
   },
 } as const;
 

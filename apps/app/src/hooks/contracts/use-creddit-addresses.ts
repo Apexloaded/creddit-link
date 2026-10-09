@@ -1,6 +1,6 @@
 "use client";
 
-import { useConnection } from "wagmi";
+import { useConnection, useChains } from "wagmi";
 import { CREDDIT_ADDRESSES, Contracts, Tokens } from "@/config/contract.config";
 import { envConfig } from "@/config";
 

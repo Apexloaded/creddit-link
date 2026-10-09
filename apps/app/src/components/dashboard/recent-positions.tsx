@@ -10,7 +10,11 @@ function RecentPositions() {
       <div className="mb-5">
         <p className="text-2xl font-mono font-semibold">Positions</p>
       </div>
-      <PositionTable data={positions} />
+      <PositionTable
+        data={positions}
+        enableColumnVisibility={false}
+        enableSearch={false}
+      />
     </div>
   );
 }

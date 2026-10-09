@@ -7,6 +7,7 @@ export enum Stock {
   NFLX = "NFLX",
   GOOGL = "GOOGL",
   IBM = "IBM",
+  AMD = "AMD",
 }
 
 export const STOCKS = {
@@ -49,6 +50,11 @@ export const STOCKS = {
     symbol: "IBM",
     name: "Robinhood IBM",
     rhAddress: "0x980dcf6766FA79f5Cf0c4AAdb3ab477ff15a9619",
+  },
+  [Stock.AMD]: {
+    symbol: "AMD",
+    name: "Robinhood AMD",
+    rhAddress: "0x86923f96303D656E4aa86D9d42D1e57ad2023fdC",
   },
 };
 

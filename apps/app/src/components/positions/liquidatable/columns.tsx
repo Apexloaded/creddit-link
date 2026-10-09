@@ -33,10 +33,10 @@ export function getLiquidatableColumns(actions: PositionActions = {}) {
         const isClosed = info.row.original.isClosed;
         return (
           <div className="flex items-center gap-3 w-40">
-            <span className="font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">
+            {/* <span className="font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">
               <span className="text-slate-400">#</span>
               {info.getValue()}
-            </span>
+            </span> */}
             <Tooltip>
               <TooltipTrigger>
                 {isLiquidatable ? (

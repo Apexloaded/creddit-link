@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useConnection } from "wagmi";
 import { Container } from "../ui/container";
 import { NavUser } from "../navigation/nav-user";
+import { NetworkSwitcher } from "./network-switcher";
 
 export function WalletConnect() {
   const { isConnected } = useConnection();
@@ -25,6 +26,7 @@ export function WalletConnect() {
           <Button size={'icon'} variant={'secondary'}>
             <PlusIcon />
           </Button>
+          <NetworkSwitcher />
           <NavUser />
         </div>
       )}

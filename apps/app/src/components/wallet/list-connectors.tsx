@@ -10,7 +10,7 @@ import { envConfig } from "@/config/env.config";
 
 export function ListConnectors() {
   const router = useRouter();
-  const { connect } = useConnect();
+  const { mutate } = useConnect();
   const connectors = useConnectors();
   const { isConnected } = useConnection();
 
@@ -30,14 +30,14 @@ export function ListConnectors() {
             name: connector.name,
             icon: connector.icon,
             onClick: () =>
-              connect(
+              mutate(
                 {
                   connector,
                   chainId: envConfig.app.defaultChain,
                 },
                 {
                   onSuccess: () => {
-                    router.push(routes.app.dashboard)
+                    router.push(routes.app.dashboard);
                   },
                 },
               ),

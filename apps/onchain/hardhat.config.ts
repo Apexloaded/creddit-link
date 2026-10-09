@@ -68,12 +68,37 @@ export default defineConfig({
   //   // deploy slow. One is fine on a testnet.
   //   requiredConfirmations: 1,
   // },
-  // verify: {
+  chainDescriptors: {
+    4663: {
+      name: "robinhood",
+      blockExplorers: {
+        blockscout: {
+          name: "Robinhood Mainnet Blockscout",
+          url: "https://blockscout.com",
+          apiUrl: "https://blockscout.com/api/",
+        },
+      },
+    },
+    46630: {
+      name: "robinhoodTestnet",
+      blockExplorers: {
+        blockscout: {
+          name: "Robinhood Testnet Blockscout",
+          url: "https://explorer.testnet.chain.robinhood.com:443",
+          apiUrl: "https://explorer.testnet.chain.robinhood.com:443/api",
+        },
+      },
+    },
+  },
+  verify: {
   //   etherscan: {
   //     // A single Etherscan v2 key covers Basescan, including Base Sepolia.
   //     apiKey: configVariable("ETHERSCAN_API_KEY"),
   //   },
-  // },
+    blockscout: {
+      apiKey: configVariable("BLOCKSCOUT_API_KEY"),
+    },
+  },
   // ignition: {
   //   strategyConfig: {
   //     create2: {
