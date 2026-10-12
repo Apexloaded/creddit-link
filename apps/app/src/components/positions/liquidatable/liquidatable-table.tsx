@@ -1,7 +1,11 @@
 "use client";
 
 import { Fragment, memo, useState } from "react";
-import { baseTableConfig, DataTable } from "../../table/data-table";
+import {
+  baseTableConfig,
+  DataTable,
+  DataTableConfig,
+} from "../../table/data-table";
 import { getLiquidatableColumns } from "./columns";
 import { useMemo } from "react";
 import { IPosition } from "@/interfaces/creddit-lens.interface";
@@ -11,9 +15,15 @@ import LiquidateModal from "./liquidate-modal";
 
 type PositionTableProps = {
   data: IPosition[];
+  enableSearch?: boolean;
+  enableColumnVisibility?: boolean;
 };
 
-function LiquidatableTableComponent({ data }: PositionTableProps) {
+function LiquidatableTableComponent({
+  data,
+  enableColumnVisibility,
+  enableSearch,
+}: PositionTableProps) {
   const router = useRouter();
   const [liquidatePosition, setLiquidatePosition] = useState<IPosition | null>(
     null,
@@ -28,11 +38,14 @@ function LiquidatableTableComponent({ data }: PositionTableProps) {
   );
 
   const config = useMemo(
-    () => ({
-      ...baseTableConfig,
-      enableRowSelection: false,
-      isSticky: true,
-    }),
+    () =>
+      ({
+        ...baseTableConfig,
+        enableColumnVisibility,
+        enableSearch,
+        enableRowSelection: false,
+        isSticky: true,
+      }) as DataTableConfig<IPosition>,
     [],
   );
 

@@ -1,12 +1,5 @@
 import { hardhat, robinhoodTestnet } from "viem/chains";
 
-const required = (name: string) => {
-  if (!process.env[name]) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return process.env[name]!;
-};
-
 const keys = {
   app: {
     name: "APP_NAME",

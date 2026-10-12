@@ -11,7 +11,11 @@ function LiquidatablePositions() {
       <div className="mb-5">
         <p className="text-2xl font-mono font-semibold">Liquidatables</p>
       </div>
-      <LiquidatableTable data={positions ?? []} />
+      <LiquidatableTable
+        data={positions ?? []}
+        enableSearch={false}
+        enableColumnVisibility={false}
+      />
     </div>
   );
 }
