@@ -10,7 +10,7 @@ import {CredditAssetRegistry, AssetNotListed} from "../core/CredditAssetRegistry
 import {CredditRiskEngine} from "../core/CredditRiskEngine.sol";
 import {CredditLendingRouter} from "../core/CredditLendingRouter.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
-import {ZeroAddressProvided, ZeroAmount, AssetNotEnabled} from "../core/CredditErrors.sol";
+import {ZeroAddressProvided, ZeroAmount, AssetNotEnabled} from "../interfaces/ICredditErrors.sol";
 import {WadMath} from "../libraries/WadMath.sol";
 import {MockOracle} from "../mock/MockOracle.sol";
 import {MockERC20} from "../mock/MockERC20.sol";

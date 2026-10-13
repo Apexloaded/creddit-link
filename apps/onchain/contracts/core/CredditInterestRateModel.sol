@@ -5,7 +5,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {WadMath} from "../libraries/WadMath.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {CredditCore} from "./CredditCore.sol";
-import {ZeroAddressProvided} from "./CredditErrors.sol";
+import {ZeroAddressProvided} from "../interfaces/ICredditErrors.sol";
 
 /// @notice Custom errors for CredditInterestRateModel contract
 error InvalidKink(uint256 kinkWad);

@@ -9,7 +9,7 @@ import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.s
 
 import {CredditCore} from "../core/CredditCore.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
-import {ZeroAddressProvided} from "../core/CredditErrors.sol";
+import {ZeroAddressProvided} from "../interfaces/ICredditErrors.sol";
 
 /* =========================================================================
  * CONCRETE HARNESS FOR ABSTRACT CLASS

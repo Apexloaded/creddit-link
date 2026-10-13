@@ -3,9 +3,27 @@ pragma solidity ^0.8.27;
 
 import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {CredditAssetRegistry, AssetNotListed, AssetAlreadyListed, InvalidMaxExposure, ZeroFactor, CollateralFactorTooHigh, LiquidationThresholdTooLow, InvalidLiquidationPenalty, InvalidLiquidationBonus, LiquidationThresholdTooHigh} from "../core/CredditAssetRegistry.sol";
-import {ZeroAddressProvided, InvalidDecimals, AssetNotEnabled} from "../core/CredditErrors.sol";
+import {
+    ERC1967Proxy
+} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {
+    CredditAssetRegistry,
+    AssetNotListed,
+    AssetAlreadyListed,
+    InvalidMaxExposure,
+    ZeroFactor,
+    CollateralFactorTooHigh,
+    LiquidationThresholdTooLow,
+    InvalidLiquidationPenalty,
+    InvalidLiquidationBonus,
+    LiquidationThresholdTooHigh
+} from "../core/CredditAssetRegistry.sol";
+import {AssetConfig} from "../interfaces/ICredditAssetRegistry.sol";
+import {
+    ZeroAddressProvided,
+    InvalidDecimals,
+    AssetNotEnabled
+} from "../interfaces/ICredditErrors.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 
 contract CredditAssetRegistryTest is Test {
@@ -114,7 +132,7 @@ contract CredditAssetRegistryTest is Test {
         );
         vm.stopPrank();
 
-        CredditAssetRegistry.AssetConfig memory config = registry.getAsset(
+        AssetConfig memory config = registry.getAsset(
             mockTokenA
         );
 
@@ -396,7 +414,7 @@ contract CredditAssetRegistryTest is Test {
         );
         vm.stopPrank();
 
-        CredditAssetRegistry.AssetConfig memory config = registry.getAsset(
+        AssetConfig memory config = registry.getAsset(
             mockTokenA
         );
         assertEq(config.collateralFactorBps, newCF);
@@ -541,13 +559,13 @@ contract CredditAssetRegistryTest is Test {
         vm.stopPrank();
 
         // onlyEnabled = true -> returns 1 asset (Token A)
-        CredditAssetRegistry.AssetConfig[] memory enabledOnly = registry
+        AssetConfig[] memory enabledOnly = registry
             .listAssets(true);
         assertEq(enabledOnly.length, 1);
         assertEq(enabledOnly[0].token, mockTokenA);
 
         // onlyEnabled = false -> returns 2 assets (Token A & Token B)
-        CredditAssetRegistry.AssetConfig[] memory allListed = registry
+        AssetConfig[] memory allListed = registry
             .listAssets(false);
         assertEq(allListed.length, 2);
     }

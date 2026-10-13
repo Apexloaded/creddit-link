@@ -3,7 +3,7 @@ pragma solidity ^0.8.27;
 
 import {CredditCore} from "./CredditCore.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
-import {ZeroAddressProvided} from "./CredditErrors.sol";
+import {ZeroAddressProvided} from "../interfaces/ICredditErrors.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {WadMath} from "../libraries/WadMath.sol";
 import {AggregatorV3Interface} from "../interfaces/AggregatorV3Interface.sol";

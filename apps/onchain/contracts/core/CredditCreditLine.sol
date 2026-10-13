@@ -13,7 +13,6 @@ import {
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {CredditCore} from "./CredditCore.sol";
-import {CredditAssetRegistry} from "./CredditAssetRegistry.sol";
 import {CredditRiskEngine} from "./CredditRiskEngine.sol";
 import {CredditTreasury} from "./CredditTreasury.sol";
 import {CredditLendingRouter} from "./CredditLendingRouter.sol";
@@ -25,7 +24,7 @@ import {
     ZeroAmount,
     AssetNotEnabled,
     ArrayLengthMismatch
-} from "./CredditErrors.sol";
+} from "../interfaces/ICredditErrors.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
 import {
     Position,
@@ -39,6 +38,10 @@ import {
     CollateralWithdrawnEvent,
     DebtInterestAccruedEvent
 } from "../interfaces/ICredditCreditLine.sol";
+import {
+    ICredditAssetRegistry,
+    AssetConfig
+} from "../interfaces/ICredditAssetRegistry.sol";
 
 /// @notice Custom Errors for the CredditCore contract
 error MaxExposureExceeded(address asset, uint256 newTotal, uint256 maxExposure);
@@ -72,7 +75,7 @@ contract CredditCreditLine is CredditCore {
     using WadMath for uint256;
 
     /// @dev Reference to the asset registry contract.
-    CredditAssetRegistry public registry;
+    ICredditAssetRegistry public registry;
 
     /// @dev Reference to the risk engine contract.
     CredditRiskEngine public riskEngine;
@@ -166,7 +169,7 @@ contract CredditCreditLine is CredditCore {
         __CredditCore_init(admin);
 
         // Initialize callable contracts
-        registry = CredditAssetRegistry(_assetRegistry);
+        registry = ICredditAssetRegistry(_assetRegistry);
         riskEngine = CredditRiskEngine(_riskEngine);
         oracle = IPriceOracle(_oracle);
         router = CredditLendingRouter(_router);
@@ -262,7 +265,7 @@ contract CredditCreditLine is CredditCore {
         if (amount == 0) revert ZeroAmount();
         _syncDebtIndex();
 
-        CredditAssetRegistry.AssetConfig memory cfg = registry.getAsset(asset);
+        AssetConfig memory cfg = registry.getAsset(asset);
         if (!cfg.isEnabled) revert AssetNotEnabled(asset);
 
         uint256 newTotal = totalDeposited[asset] + amount;
@@ -570,7 +573,7 @@ contract CredditCreditLine is CredditCore {
         address collateralAsset,
         uint256 debtToCoverWad
     ) internal view returns (LiquidationAmounts memory amounts) {
-        CredditAssetRegistry.AssetConfig memory cfg = registry.getAsset(
+        AssetConfig memory cfg = registry.getAsset(
             collateralAsset
         );
 

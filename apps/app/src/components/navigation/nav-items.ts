@@ -57,7 +57,7 @@ export const navItems: NavGroup[] = [
     items: [
       {
         title: "Markets",
-        url: routes.app.dashboard,
+        url: routes.app.markets,
         icon: TrendingUpIcon,
       },
       {

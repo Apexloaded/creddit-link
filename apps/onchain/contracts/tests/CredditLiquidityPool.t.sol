@@ -10,7 +10,7 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Pau
 import {CredditLiquidityPool, InsufficientLiquidity} from "../core/CredditLiquidityPool.sol";
 import {CredditInterestRateModel} from "../core/CredditInterestRateModel.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
-import {ZeroAddressProvided} from "../core/CredditErrors.sol";
+import {ZeroAddressProvided} from "../interfaces/ICredditErrors.sol";
 import {MockERC20} from "../mock/MockERC20.sol";
 import {CredditTreasury} from "../core/CredditTreasury.sol";
 

@@ -16,7 +16,7 @@ import {CredditInterestRateModel} from "./CredditInterestRateModel.sol";
 import {CredditTreasury} from "./CredditTreasury.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {WadMath} from "../libraries/WadMath.sol";
-import {ZeroAddressProvided} from "./CredditErrors.sol";
+import {ZeroAddressProvided} from "../interfaces/ICredditErrors.sol";
 import {ILendingAdapter} from "../interfaces/ILendingAdapter.sol";
 import {
     IERC20Metadata

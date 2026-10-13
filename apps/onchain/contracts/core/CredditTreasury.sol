@@ -5,7 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {CredditCore} from "./CredditCore.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
-import {ZeroAddressProvided} from "./CredditErrors.sol";
+import {ZeroAddressProvided} from "../interfaces/ICredditErrors.sol";
 
 /// @notice Custom errors for CredditTreasury
 error InsufficientTreasuryBalance(uint256 requested, uint256 available);

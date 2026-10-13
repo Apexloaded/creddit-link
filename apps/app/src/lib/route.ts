@@ -12,6 +12,7 @@ export const routes = {
     earn: "/earn",
     withdrawCollateral: (positionId?: string) =>
       `/withdraw/collateral${positionId ? `?position=${positionId}` : ""}`,
+    markets: "/markets",
     positions: {
       index: "/positions",
       details: (positionId: string) => `/positions/${positionId}`,

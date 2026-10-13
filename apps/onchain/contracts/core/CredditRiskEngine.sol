@@ -3,8 +3,8 @@ pragma solidity ^0.8.27;
 
 import {CredditCore} from "./CredditCore.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
-import {ZeroAddressProvided} from "./CredditErrors.sol";
-import {CredditAssetRegistry} from "./CredditAssetRegistry.sol";
+import {ZeroAddressProvided} from "../interfaces/ICredditErrors.sol";
+import {ICredditAssetRegistry, AssetConfig} from "../interfaces/ICredditAssetRegistry.sol";
 import {ICredditCreditLine} from "../interfaces/ICredditCreditLine.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
 import {WadMath} from "../libraries/WadMath.sol";
@@ -20,7 +20,7 @@ contract CredditRiskEngine is CredditCore {
     using WadMath for uint256;
 
     /// @dev Reference to the asset registry contract.
-    CredditAssetRegistry public registry;
+    ICredditAssetRegistry public registry;
 
     /// @dev Reference to the oracle contract.
     IPriceOracle public oracle;
@@ -75,7 +75,7 @@ contract CredditRiskEngine is CredditCore {
         _grantRole(CredditRoles.RISK_ADMIN_ROLE, admin);
 
         // Initialize registry and oracle
-        registry = CredditAssetRegistry(_assetRegistry);
+        registry = ICredditAssetRegistry(_assetRegistry);
         oracle = IPriceOracle(_oracle);
 
         // Initialize risk parameters
@@ -174,7 +174,7 @@ contract CredditRiskEngine is CredditCore {
         uint256 positionId,
         bool shouldUseSafe
     ) public view returns (uint256 totalWad, bool isStale, bool isValid) {
-        CredditAssetRegistry.AssetConfig[] memory configs = registry.listAssets(
+        AssetConfig[] memory configs = registry.listAssets(
             true
         );
         (totalWad, isStale, isValid) = _sumAssetValue(
@@ -232,7 +232,7 @@ contract CredditRiskEngine is CredditCore {
         uint256 positionId,
         bool shouldUseSafe
     ) public view returns (uint256 totalWad, bool isStale, bool isValid) {
-        CredditAssetRegistry.AssetConfig[] memory configs = registry.listAssets(
+        AssetConfig[] memory configs = registry.listAssets(
             false
         );
         (totalWad, isStale, isValid) = _sumAssetValue(
@@ -255,7 +255,7 @@ contract CredditRiskEngine is CredditCore {
     function _sumAssetValue(
         address source,
         uint256 positionId,
-        CredditAssetRegistry.AssetConfig[] memory configs,
+        AssetConfig[] memory configs,
         bool shouldUseSafe,
         bool isLiquidationThreshold
     ) internal view returns (uint256 totalWad, bool isStale, bool isValid) {
@@ -263,7 +263,7 @@ contract CredditRiskEngine is CredditCore {
         isStale = false;
 
         for (uint256 i; i < configs.length; ++i) {
-            CredditAssetRegistry.AssetConfig memory cfg = configs[i];
+            AssetConfig memory cfg = configs[i];
             uint256 collateral = ICredditCreditLine(source).collateralOf(
                 positionId,
                 cfg.token
@@ -304,7 +304,7 @@ contract CredditRiskEngine is CredditCore {
     function _assetValue(
         uint256 collateral,
         address asset,
-        CredditAssetRegistry.AssetConfig memory assetCfg,
+        AssetConfig memory assetCfg,
         bool shouldUseSafe
     ) internal view returns (uint256 valueWad, bool isStale, bool isValid) {
         uint256 priceWad;

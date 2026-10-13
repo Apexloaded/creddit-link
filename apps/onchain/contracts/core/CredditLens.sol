@@ -8,7 +8,9 @@ import {CredditLiquidityPool} from "../core/CredditLiquidityPool.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
 import {WadMath} from "../libraries/WadMath.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {ZeroAddressProvided} from "./CredditErrors.sol";
+import {ZeroAddressProvided} from "../interfaces/ICredditErrors.sol";
+import {ICredditAssetRegistry, AssetConfig} from "../interfaces/ICredditAssetRegistry.sol";
+import {CollateralDetail, PositionSummary, PortfolioSummary, MarketInfo} from "../interfaces/ICredditLens.sol";
 
 /// @title CredditLens
 /// @notice Read-only helper contract for dApp frontends, explorers, and liquidator bots
@@ -17,49 +19,6 @@ contract CredditLens is CredditCore {
 
     ICredditCreditLine public cl;
     CredditLiquidityPool public lp;
-
-    struct CollateralDetail {
-        string symbol;
-        address asset;
-        uint256 amount;
-        uint256 priceInUsd;
-    }
-
-    /// @notice Unified data structure representing a complete position summary.
-    struct PositionSummary {
-        uint256 positionId;
-        address owner;
-        uint256 debtWad;
-        uint256 collateralValueWad;
-        uint256 creditLimitUsd;
-        uint256 liquidationValueWad;
-        uint256 healthFactorWad; // (Liquidation Value / Debt) in WAD (1e18 = 100% health threshold)
-        bool isLiquidatable;
-        bool isClosed;
-        bool isStale; // True if any collateral price is stale
-        bool isValid; // True if all collaterals are valid
-        bool isLiquidated;
-        uint256 cumulativeBorrowed;
-        uint256 cumulativeRepaid;
-        uint64 liquidatedAt;
-        uint64 openedAt;
-        uint64 closedAt;
-        CollateralDetail[] collaterals;
-    }
-
-    struct PortfolioSummary {
-        uint256 totalPositionsCount;
-        uint256 totalRawCollateralUsd;
-        uint256 totalDebtUsd;
-        uint256 liquidityBalance;
-        uint256 totalCreditLimitUsd;
-        uint256 totalLiquidationValueUsd;
-        uint256 netBorrowingPowerUsd; // totalCreditLimitUsd - totalDebtUsd
-        uint256 totalHealthFactorWad;
-        uint256 weightedLtvBps;
-        bool hasAtRiskPosition; // True if ANY position is liquidatable
-        bool isStale; // True if any collateral price is stale
-    }
 
     /// @notice Initializes the contract with the provided addresses.
     /// @param credditLine Address of the CreditLine contract.
@@ -196,6 +155,63 @@ contract CredditLens is CredditCore {
                 liquidatableSummaries[idx] = batch[i];
                 idx++;
             }
+        }
+    }
+
+    function getMarketData(
+        bool onlyEnabled
+    ) public view returns (MarketInfo[] memory markets) {
+        ICredditAssetRegistry registry = cl.registry();
+
+        AssetConfig[] memory assets = registry.listAssets(onlyEnabled);
+        uint256 len = assets.length;
+        markets = new MarketInfo[](len);
+
+        IPriceOracle oracle = cl.oracle();
+
+        // Pool-level borrow totals (protocol has a single borrow asset)
+        // Use currentDebt() which includes pending accrued interest
+        uint256 totalBorrowed = lp.currentDebt();
+        uint8 borrowDecimals = IERC20Metadata(lp.asset()).decimals();
+
+        // Compute borrowed value in USD (WAD)
+        uint256 totalBorrowedValueUsd;
+        {
+            (uint256 borrowPriceWad, , ) = oracle.getUsdPriceSafe(lp.asset());
+            totalBorrowedValueUsd = totalBorrowed.toWad(borrowDecimals).wadMulDown(borrowPriceWad);
+        }
+
+        for (uint256 i = 0; i < len; i++) {
+            AssetConfig memory cfg = assets[i];
+            address token = cfg.token;
+
+            uint256 priceWad;
+            {
+                (priceWad, , ) = oracle.getUsdPriceSafe(token);
+            }
+
+            uint256 depositedAmount = cl.totalDeposited(token);
+            uint256 depositedValueUsd = depositedAmount
+                .toWad(cfg.decimals)
+                .wadMulDown(priceWad);
+
+            markets[i] = MarketInfo({
+                asset: token,
+                symbol: IERC20Metadata(token).symbol(),
+                decimals: cfg.decimals,
+                collateralFactorBps: cfg.collateralFactorBps,
+                liquidationThresholdBps: cfg.liquidationThresholdBps,
+                liquidationPenaltyBps: cfg.liquidationPenaltyBps,
+                liquidationBonusBps: cfg.liquidationBonusBps,
+                maxExposure: cfg.maxExposure,
+                priceInUsd: priceWad,
+                totalDepositedValueUsd: depositedValueUsd,
+                totalDepositedAmount: depositedAmount,
+                totalBorrowedValueUsd: totalBorrowedValueUsd,
+                totalBorrowedAmount: totalBorrowed,
+                isEnabled: cfg.isEnabled,
+                isListed: cfg.isListed
+            });
         }
     }
 

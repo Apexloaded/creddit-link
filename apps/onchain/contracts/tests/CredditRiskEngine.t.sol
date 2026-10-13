@@ -5,7 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {CredditRiskEngine, InvalidCapBps} from "../core/CredditRiskEngine.sol";
 import {CredditAssetRegistry} from "../core/CredditAssetRegistry.sol";
-import {ZeroAddressProvided} from "../core/CredditErrors.sol";
+import {ZeroAddressProvided} from "../interfaces/ICredditErrors.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {WadMath} from "../libraries/WadMath.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";

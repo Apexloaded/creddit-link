@@ -4,7 +4,7 @@ pragma solidity ^0.8.27;
 import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {CredditOracle, InvalidPrice, InvalidStalenessThreshold, FeedNotConfigured, FeedDisabled, IncompleteRound, StalePrice} from "../core/CredditOracle.sol";
-import {ZeroAddressProvided} from "../core/CredditErrors.sol";
+import {ZeroAddressProvided} from "../interfaces/ICredditErrors.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {AggregatorV3Interface} from "../interfaces/AggregatorV3Interface.sol";
 import {MockV3Aggregator} from "../mock/MockV3Aggregator.sol";

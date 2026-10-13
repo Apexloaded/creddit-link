@@ -7,7 +7,7 @@ import {
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {CredditCore} from "./CredditCore.sol";
-import {ZeroAddressProvided, ZeroAmount} from "./CredditErrors.sol";
+import {ZeroAddressProvided, ZeroAmount} from "../interfaces/ICredditErrors.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
 import {ILendingAdapter} from "../interfaces/ILendingAdapter.sol";
 import {WadMath} from "../libraries/WadMath.sol";

@@ -6,7 +6,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {CredditInterestRateModel, InvalidKink} from "../core/CredditInterestRateModel.sol";
 import {CredditRoles} from "../libraries/CredditRole.sol";
-import {ZeroAddressProvided} from "../core/CredditErrors.sol";
+import {ZeroAddressProvided} from "../interfaces/ICredditErrors.sol";
 import {WadMath} from "../libraries/WadMath.sol";
 
 contract CredditInterestRateModelTest is Test {

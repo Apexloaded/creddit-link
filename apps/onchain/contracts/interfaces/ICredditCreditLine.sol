@@ -3,6 +3,11 @@ pragma solidity ^0.8.27;
 
 import {CredditRiskEngine} from "../core/CredditRiskEngine.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
+import {ICredditAssetRegistry} from "../interfaces/ICredditAssetRegistry.sol";
+
+/*****************************************************************
+ * STRUCT DEFINITIONS
+ *****************************************************************/
 
 /// @notice Struct to hold position data
 /// @param owner The address of the owner.
@@ -36,9 +41,10 @@ struct LiquidationAmounts {
     uint256 protocolFee;
 }
 
-/***********************************************************
- * CredditCreditLine Events
- ***********************************************************/
+/*****************************************************************
+ * EVENT DEFINITIONS
+ *****************************************************************/
+
 /// @notice Emitted when a new position is opened.
 /// @param positionId The ID of the position.
 /// @param owner The address of the owner.
@@ -143,6 +149,10 @@ interface ICredditCreditLine {
 
     /// @notice Returns the address of the risk engine.
     /// @return The address of the risk engine.
+    function registry() external view returns (ICredditAssetRegistry);
+
+    /// @notice Returns the address of the risk engine.
+    /// @return The address of the risk engine.
     function riskEngine() external view returns (CredditRiskEngine);
 
     /// @notice Returns the address of the risk engine.
@@ -151,7 +161,9 @@ interface ICredditCreditLine {
 
     /// @notice Returns the address of the risk engine.
     /// @return The address of the risk engine.
-    function positions(uint256 positionId) external view returns (Position memory);
+    function positions(
+        uint256 positionId
+    ) external view returns (Position memory);
 
     /// @notice Returns the amount of collateral for a specific user and asset.
     /// @param positionId The ID of the position.
@@ -179,7 +191,9 @@ interface ICredditCreditLine {
     /// @notice Returns the debt shares for a specific position.
     /// @param positionId The ID of the position.
     /// @return The debt shares.
-    function currentPositionDebt(uint256 positionId) external view returns (uint256);
+    function currentPositionDebt(
+        uint256 positionId
+    ) external view returns (uint256);
 
     /// @notice Returns the owner for a specific position.
     /// @param positionId The ID of the position.
@@ -192,4 +206,9 @@ interface ICredditCreditLine {
     /// @param positionId The ID of the position.
     /// @return The debt shares.
     function debtShares(uint256 positionId) external view returns (uint256);
+
+    /// @notice Returns the total deposited amount for a specific asset across all positions.
+    /// @param asset The address of the collateral asset.
+    /// @return The total deposited amount in raw token units.
+    function totalDeposited(address asset) external view returns (uint256);
 }
