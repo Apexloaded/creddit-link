@@ -3,18 +3,32 @@ pragma solidity ^0.8.27;
 
 import {CredditCore} from "./CredditCore.sol";
 import {CredditRiskEngine} from "./CredditRiskEngine.sol";
-import {ICredditCreditLine, Position} from "../interfaces/ICredditCreditLine.sol";
+import {
+    ICredditCreditLine,
+    Position
+} from "../interfaces/ICredditCreditLine.sol";
 import {CredditLiquidityPool} from "../core/CredditLiquidityPool.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
 import {WadMath} from "../libraries/WadMath.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {
+    IERC20Metadata
+} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ZeroAddressProvided} from "../interfaces/ICredditErrors.sol";
-import {ICredditAssetRegistry, AssetConfig} from "../interfaces/ICredditAssetRegistry.sol";
-import {CollateralDetail, PositionSummary, PortfolioSummary, MarketInfo} from "../interfaces/ICredditLens.sol";
+import {
+    ICredditAssetRegistry,
+    AssetConfig
+} from "../interfaces/ICredditAssetRegistry.sol";
+import {
+    CollateralDetail,
+    PositionSummary,
+    PortfolioSummary,
+    MarketInfo,
+    ICredditLens
+} from "../interfaces/ICredditLens.sol";
 
 /// @title CredditLens
 /// @notice Read-only helper contract for dApp frontends, explorers, and liquidator bots
-contract CredditLens is CredditCore {
+contract CredditLens is CredditCore, ICredditLens {
     using WadMath for uint256;
 
     ICredditCreditLine public cl;
@@ -178,7 +192,9 @@ contract CredditLens is CredditCore {
         uint256 totalBorrowedValueUsd;
         {
             (uint256 borrowPriceWad, , ) = oracle.getUsdPriceSafe(lp.asset());
-            totalBorrowedValueUsd = totalBorrowed.toWad(borrowDecimals).wadMulDown(borrowPriceWad);
+            totalBorrowedValueUsd = totalBorrowed
+                .toWad(borrowDecimals)
+                .wadMulDown(borrowPriceWad);
         }
 
         for (uint256 i = 0; i < len; i++) {

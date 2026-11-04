@@ -8,6 +8,7 @@ import { useConnection, useReadContracts } from "wagmi";
 import { Contracts, ORACLE_PRICE_DECIMALS } from "@/config/contract.config";
 import { credditOracleAbi } from "@/contracts/abis/credditOracleAbi";
 import { IAsset } from "@/interfaces/asset.interface";
+import { Stock } from "@/config";
 
 export function useAsset() {
   const { address } = useConnection();
@@ -48,10 +49,10 @@ export function useAsset() {
     if (!rawAssets || !symbolsData || symbolsData.length === 0) return [];
 
     return rawAssets.map((asset, index) => {
-      const symResult = symbolsData?.[index]?.result;
+      const symResult = symbolsData?.[index]?.result as Stock;
       return {
         ...asset,
-        symbol: typeof symResult === "string" ? symResult : "",
+        ...(symResult ? { symbol: symResult } : {}),
       };
     });
   }, [rawAssets, symbolsData]);
@@ -102,7 +103,10 @@ export function useAsset() {
   // 3. COMBINE STATIC & DYNAMIC DATA INTO FINAL STATE
   // -------------------------------------------------------------------------
   useEffect(() => {
-    if (staticAssets.length > 0 && staticAssets.every((a) => a.symbol !== "")) {
+    if (
+      staticAssets.length > 0 &&
+      staticAssets.every((a) => a.symbol !== undefined)
+    ) {
       const mapRawAssets: IAsset[] = staticAssets.map((asset, index) => {
         const balanceCall = dynamicData?.[index * 2];
         const priceCall = dynamicData?.[index * 2 + 1];
@@ -120,6 +124,7 @@ export function useAsset() {
 
         return {
           ...asset,
+          symbol: asset.symbol!,
           balance,
           balanceFormatted,
           collateralFactorBps: bpsToRawPercent(asset.collateralFactorBps),

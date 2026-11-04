@@ -68,3 +68,5 @@ struct MarketInfo {
     bool isEnabled;
     bool isListed;
 }
+
+interface ICredditLens {}
